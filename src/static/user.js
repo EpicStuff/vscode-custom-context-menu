@@ -67,6 +67,9 @@
         }
       }
       `.replaceAll(/\s+/g, " ");
+    requestAnimationFrame(() => {
+      hideTrailingSeparator(container);
+    });
 
     // fix context menu position
     if (menu.matches(".monaco-submenu")) {
@@ -92,6 +95,39 @@
         }
       }
       menu.style.top = menu_top + "px";
+    }
+  }
+
+  function hideTrailingSeparator(container) {
+    const items = Array.from(container.querySelectorAll(".action-item"));
+    const isRendered = item => {
+      const style = getComputedStyle(item);
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        item.getClientRects().length > 0
+      );
+    };
+    const isSeparator = item =>
+      item.classList.contains("separator") ||
+      item.getAttribute("role") === "separator" ||
+      item.querySelector(".codicon.separator");
+    for (const item of items) {
+      if (item.dataset.autoHideSeparator === "true") {
+        item.style.removeProperty("display");
+        delete item.dataset.autoHideSeparator;
+      }
+    }
+    const visibleItems = items.filter(isRendered);
+    const firstItem = visibleItems.at(0);
+    if (firstItem && isSeparator(firstItem)) {
+      firstItem.dataset.autoHideSeparator = "true";
+      firstItem.style.display = "none";
+    }
+    const lastItem = visibleItems.at(-1);
+    if (lastItem && isSeparator(lastItem)) {
+      lastItem.dataset.autoHideSeparator = "true";
+      lastItem.style.display = "none";
     }
   }
 })();
