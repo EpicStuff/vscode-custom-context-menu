@@ -12,6 +12,14 @@ function activate(context) {
 
 	function resolveWorkbenchHtml(baseDir) {
 		const candidates = [
+			path.join(baseDir, "resources", "app", "out", "vs", "code", "electron-browser", "workbench", "workbench.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "code", "electron-browser", "workbench", "workbench.esm.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "code", "electron-sandbox", "workbench", "workbench.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "code", "electron-sandbox", "workbench", "workbench.esm.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "workbench", "electron-sandbox", "workbench.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "workbench", "electron-sandbox", "workbench.esm.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "workbench", "workbench.html"),
+			path.join(baseDir, "resources", "app", "out", "vs", "workbench", "workbench.esm.html"),
 			path.join(baseDir, "vs", "code", "electron-sandbox", "workbench", "workbench.html"),
 			path.join(baseDir, "vs", "code", "electron-sandbox", "workbench", "workbench.esm.html"),
 			path.join(baseDir, "vs", "workbench", "electron-sandbox", "workbench.html"),
