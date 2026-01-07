@@ -22,7 +22,14 @@ function activate(context) {
 		return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 	}
 
-	let htmlFile = resolvedAppDir ? resolveWorkbenchHtml(resolvedAppDir) : null;
+	function resolveBaseDir() {
+		const config = vscode.workspace.getConfiguration("custom-contextmenu");
+		const overridePath = (config.get("vscodeInstallPath") || "").trim();
+		return overridePath || resolvedAppDir;
+	}
+
+	const initialBaseDir = resolveBaseDir();
+	let htmlFile = initialBaseDir ? resolveWorkbenchHtml(initialBaseDir) : null;
 	let htmlDir = htmlFile ? path.dirname(htmlFile) : null;
 	const BackupFilePath = uuid =>
 		htmlDir ? path.join(htmlDir, `workbench.${uuid}.bak-custom-css`) : null;
@@ -30,12 +37,13 @@ function activate(context) {
 	// ####  main commands ######################################################
 
 	async function cmdInstall() {
-		if (!resolvedAppDir || !htmlFile) {
-			if (!resolvedAppDir) {
+		const baseDir = resolveBaseDir();
+		if (!baseDir || !htmlFile) {
+			if (!baseDir) {
 				vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
 				return;
 			}
-			htmlFile = resolveWorkbenchHtml(resolvedAppDir);
+			htmlFile = resolveWorkbenchHtml(baseDir);
 			htmlDir = htmlFile ? path.dirname(htmlFile) : null;
 		}
 		if (!htmlFile) {
@@ -50,12 +58,13 @@ function activate(context) {
 	}
 
 	async function cmdUninstall() {
-		if (!resolvedAppDir || !htmlFile) {
-			if (!resolvedAppDir) {
+		const baseDir = resolveBaseDir();
+		if (!baseDir || !htmlFile) {
+			if (!baseDir) {
 				vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
 				return;
 			}
-			htmlFile = resolveWorkbenchHtml(resolvedAppDir);
+			htmlFile = resolveWorkbenchHtml(baseDir);
 			htmlDir = htmlFile ? path.dirname(htmlFile) : null;
 		}
 		if (!htmlFile) {

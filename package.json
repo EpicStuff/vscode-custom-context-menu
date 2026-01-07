@@ -33,6 +33,12 @@
 		"configuration": {
 			"type": "object",
 			"properties": {
+				"custom-contextmenu.vscodeInstallPath": {
+					"title": "VS Code Install Path",
+					"type": "string",
+					"default": "",
+					"description": "Optional override for the VS Code installation directory used to locate workbench.html/workbench.esm.html."
+				},
 				"custom-contextmenu.showGoTos": {
 					"title": "Show Go-Tos",
 					"type": "boolean",
