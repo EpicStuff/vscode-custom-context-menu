@@ -50,3 +50,7 @@ The first entry hides the separator immediately before the `Share` menu item (wh
 > Note: `Paste + _` (or `Share + _`) only hides the separator after the item. To hide the menu item itself, add the item label separately (for example, include `"Paste"`).
 
 > Note: after changing `custom-contextmenu.selectors`, re-enable the custom context menu or restart VS Code so the injected script is updated.
+
+## Note:
+
+All changes were made by ChatGPT (and I've got no idea how to make vscode extensions or do javascript, but this does seem to be working).
