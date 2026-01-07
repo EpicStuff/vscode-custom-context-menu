@@ -145,7 +145,7 @@ function activate(context) {
 		html = clearExistingPatches(html);
 
 		const injectHTML = await patchScript();
-		html = html.replace(/<meta\s+http-equiv="Content-Security-Policy"[\s\S]*?\/>/, "");
+		html = removeCspMetaTag(html);
 
 		html = html.replace(
 			/(<\/html>)/,
@@ -169,6 +169,13 @@ function activate(context) {
 		);
 		html = html.replace(/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [\w-]+ !! -->\n*/g, "");
 		return html;
+	}
+
+	function removeCspMetaTag(html) {
+		return html.replace(
+			/<meta\b[^>]*http-equiv=(?:"|')Content-Security-Policy(?:"|')[^>]*>/gi,
+			""
+		);
 	}
 
 	async function patchScript() {
