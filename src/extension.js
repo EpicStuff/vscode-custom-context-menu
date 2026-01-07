@@ -5,23 +5,66 @@ const msg = require("./messages").messages;
 const uuid = require("uuid");
 
 function activate(context) {
+	const config = vscode.workspace.getConfiguration("custom-contextmenu");
+	const configuredWorkbenchPath = config.get("workbenchPath");
 	const appDir = require.main
 		? path.dirname(require.main.filename)
 		: globalThis._VSCODE_FILE_ROOT;
-	if (!appDir) {
+	if (!appDir && !configuredWorkbenchPath) {
 		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
 	}
 
-	const base = path.join(appDir, "vs", "code");
-	let htmlFile = path.join(base, "electron-sandbox", "workbench", "workbench.html");
-	if (!fs.existsSync(htmlFile)) {
-		htmlFile = path.join(base, "electron-sandbox", "workbench", "workbench.esm.html");
-	}
-	if (!fs.existsSync(htmlFile)) {
+	const htmlFile = resolveWorkbenchHtmlFile(appDir, configuredWorkbenchPath);
+	if (!htmlFile) {
 		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+		return;
 	}
-	const BackupFilePath = uuid =>
-		path.join(base, "electron-sandbox", "workbench", `workbench.${uuid}.bak-custom-css`);
+	const workbenchDir = path.dirname(htmlFile);
+	const BackupFilePath = uuid => path.join(workbenchDir, `workbench.${uuid}.bak-custom-css`);
+
+	function resolveWorkbenchHtmlFile(appRoot, workbenchPath) {
+		const htmlCandidates = [
+			path.join("electron-sandbox", "workbench", "workbench.html"),
+			path.join("electron-sandbox", "workbench", "workbench.esm.html"),
+			"workbench.html",
+			"workbench.esm.html",
+		];
+
+		const resolveCandidate = basePath => {
+			for (const candidate of htmlCandidates) {
+				const candidatePath = path.join(basePath, candidate);
+				if (fs.existsSync(candidatePath)) {
+					return candidatePath;
+				}
+			}
+			return null;
+		};
+
+		if (workbenchPath) {
+			const resolvedPath = path.isAbsolute(workbenchPath)
+				? workbenchPath
+				: path.resolve(workbenchPath);
+			if (fs.existsSync(resolvedPath)) {
+				const stats = fs.statSync(resolvedPath);
+				if (stats.isFile()) {
+					return resolvedPath;
+				}
+				if (stats.isDirectory()) {
+					const fromDirectory = resolveCandidate(resolvedPath);
+					if (fromDirectory) {
+						return fromDirectory;
+					}
+				}
+			}
+		}
+
+		if (!appRoot) {
+			return null;
+		}
+
+		const base = path.join(appRoot, "vs", "code");
+		return resolveCandidate(base);
+	}
 
 	// ####  main commands ######################################################
 

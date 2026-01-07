@@ -47,6 +47,12 @@
 					"type": "boolean",
 					"default": true,
 					"description": "This option will control: Cut, Copy, Paste."
+				},
+				"custom-contextmenu.workbenchPath": {
+					"title": "Workbench Path Override",
+					"type": "string",
+					"default": "",
+					"description": "Optional path to VS Code's workbench.html/workbench.esm.html file or the workbench directory to use when the default installation path cannot be detected."
 				}
 			}
 		}
