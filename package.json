@@ -36,6 +36,9 @@
 				"custom-contextmenu.selectors": {
 					"title": "Context Menu Selectors",
 					"type": "array",
+					"items": {
+						"type": "string"
+					},
 					"default": [],
 					"description": "List of aria-label selectors to hide from the context menu."
 				},
