@@ -2,18 +2,18 @@
 	"name": "vscode-custom-contextmenu",
 	"displayName": "Custom Contextmenu",
 	"description": "Custom Cleaner Contextmenu for Visual Studio Code",
-	"version": "0.1.6",
-	"publisher": "BHznJNs",
+	"version": "0.2.0",
+	"publisher": "EpicStuff",
 	"engines": {
 		"vscode": "^1.92.0"
 	},
 	"categories": ["Other"],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/BHznJNs/vscode-custom-contextmenu"
+		"url": "https://github.com/EpicStuff/vscode-custom-contextmenu"
 	},
 	"bugs": {
-		"url": "https://github.com/BHznJNs/vscode-custom-contextmenu/issues"
+		"url": "https://github.com/EpicStuff/vscode-custom-contextmenu/issues"
 	},
 	"preview": true,
 	"icon": "images/logo.png",
