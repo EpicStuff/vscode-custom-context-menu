@@ -10,18 +10,28 @@ function activate(context) {
 		: globalThis._VSCODE_FILE_ROOT;
 	if (!appDir) {
 		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+		return;
 	}
 
-	const base = path.join(appDir, "vs", "code");
-	let htmlFile = path.join(base, "electron-sandbox", "workbench", "workbench.html");
-	if (!fs.existsSync(htmlFile)) {
-		htmlFile = path.join(base, "electron-sandbox", "workbench", "workbench.esm.html");
+	function resolveWorkbenchHtml(baseDir) {
+		const candidates = [
+			path.join(baseDir, "vs", "code", "electron-sandbox", "workbench", "workbench.html"),
+			path.join(baseDir, "vs", "code", "electron-sandbox", "workbench", "workbench.esm.html"),
+			path.join(baseDir, "vs", "workbench", "electron-sandbox", "workbench.html"),
+			path.join(baseDir, "vs", "workbench", "electron-sandbox", "workbench.esm.html"),
+			path.join(baseDir, "vs", "workbench", "workbench.html"),
+			path.join(baseDir, "vs", "workbench", "workbench.esm.html"),
+		];
+		return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 	}
-	if (!fs.existsSync(htmlFile)) {
+
+	const htmlFile = resolveWorkbenchHtml(appDir);
+	if (!htmlFile) {
 		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+		return;
 	}
-	const BackupFilePath = uuid =>
-		path.join(base, "electron-sandbox", "workbench", `workbench.${uuid}.bak-custom-css`);
+	const htmlDir = path.dirname(htmlFile);
+	const BackupFilePath = uuid => path.join(htmlDir, `workbench.${uuid}.bak-custom-css`);
 
 	// ####  main commands ######################################################
 
