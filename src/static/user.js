@@ -139,15 +139,25 @@
 
   function hideTrailingSeparator(container) {
     const items = Array.from(container.querySelectorAll(".action-item"));
+    const isRendered = item => {
+      const style = getComputedStyle(item);
+      return (
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        item.getClientRects().length > 0
+      );
+    };
     const isSeparator = item =>
-      item.classList.contains("separator") || item.getAttribute("role") === "separator";
+      item.classList.contains("separator") ||
+      item.getAttribute("role") === "separator" ||
+      item.querySelector(".codicon.separator");
     for (const item of items) {
       if (item.dataset.autoHideSeparator === "true") {
         item.style.removeProperty("display");
         delete item.dataset.autoHideSeparator;
       }
     }
-    const visibleItems = items.filter(item => getComputedStyle(item).display !== "none");
+    const visibleItems = items.filter(isRendered);
     const lastItem = visibleItems.at(-1);
     if (lastItem && isSeparator(lastItem)) {
       lastItem.dataset.autoHideSeparator = "true";
