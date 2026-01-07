@@ -8,10 +8,7 @@ function activate(context) {
 	const appDir = require.main
 		? path.dirname(require.main.filename)
 		: globalThis._VSCODE_FILE_ROOT;
-	if (!appDir) {
-		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
-		return;
-	}
+	const resolvedAppDir = appDir ?? null;
 
 	function resolveWorkbenchHtml(baseDir) {
 		const candidates = [
@@ -25,17 +22,26 @@ function activate(context) {
 		return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
 	}
 
-	const htmlFile = resolveWorkbenchHtml(appDir);
-	if (!htmlFile) {
-		vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
-		return;
-	}
-	const htmlDir = path.dirname(htmlFile);
-	const BackupFilePath = uuid => path.join(htmlDir, `workbench.${uuid}.bak-custom-css`);
+	let htmlFile = resolvedAppDir ? resolveWorkbenchHtml(resolvedAppDir) : null;
+	let htmlDir = htmlFile ? path.dirname(htmlFile) : null;
+	const BackupFilePath = uuid =>
+		htmlDir ? path.join(htmlDir, `workbench.${uuid}.bak-custom-css`) : null;
 
 	// ####  main commands ######################################################
 
 	async function cmdInstall() {
+		if (!resolvedAppDir || !htmlFile) {
+			if (!resolvedAppDir) {
+				vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+				return;
+			}
+			htmlFile = resolveWorkbenchHtml(resolvedAppDir);
+			htmlDir = htmlFile ? path.dirname(htmlFile) : null;
+		}
+		if (!htmlFile) {
+			vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+			return;
+		}
 		const uuidSession = uuid.v4();
 		console.log("contextmenu", "enable")
 		await createBackup(uuidSession);
@@ -44,6 +50,18 @@ function activate(context) {
 	}
 
 	async function cmdUninstall() {
+		if (!resolvedAppDir || !htmlFile) {
+			if (!resolvedAppDir) {
+				vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+				return;
+			}
+			htmlFile = resolveWorkbenchHtml(resolvedAppDir);
+			htmlDir = htmlFile ? path.dirname(htmlFile) : null;
+		}
+		if (!htmlFile) {
+			vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+			return;
+		}
 		await uninstallImpl();
 		disabledRestart();
 	}
@@ -52,6 +70,10 @@ function activate(context) {
 		const backupUuid = await getBackupUuid(htmlFile);
 		if (!backupUuid) return;
 		const backupPath = BackupFilePath(backupUuid);
+		if (!backupPath) {
+			vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+			return;
+		}
 		await restoreBackup(backupPath);
 		await deleteBackupFiles();
 	}
@@ -76,7 +98,12 @@ function activate(context) {
 		try {
 			let html = await fs.promises.readFile(htmlFile, "utf-8");
 			html = clearExistingPatches(html);
-			await fs.promises.writeFile(BackupFilePath(uuidSession), html, "utf-8");
+			const backupPath = BackupFilePath(uuidSession);
+			if (!backupPath) {
+				vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+				return;
+			}
+			await fs.promises.writeFile(backupPath, html, "utf-8");
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			throw e;
@@ -96,7 +123,10 @@ function activate(context) {
 	}
 
 	async function deleteBackupFiles() {
-		const htmlDir = path.dirname(htmlFile);
+		if (!htmlDir) {
+			vscode.window.showInformationMessage(msg.unableToLocateVsCodeInstallationPath);
+			return;
+		}
 		const htmlDirItems = await fs.promises.readdir(htmlDir);
 		for (const item of htmlDirItems) {
 			if (item.endsWith(".bak-custom-css")) {
