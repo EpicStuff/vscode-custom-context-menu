@@ -47,6 +47,29 @@
 					"type": "string",
 					"default": "",
 					"description": "Optional path to VS Code's workbench.html/workbench.esm.html file or the workbench directory to use when the default installation path cannot be detected."
+				},
+				"custom-contextmenu.groups": {
+					"title": "Context Menu Groups",
+					"type": "array",
+					"default": [],
+					"description": "Optional grouping rules to insert headers and regroup context menu items.",
+					"items": {
+						"type": "object",
+						"required": ["label", "selectors"],
+						"properties": {
+							"label": {
+								"type": "string",
+								"description": "Group label shown in the context menu."
+							},
+							"selectors": {
+								"type": "array",
+								"description": "Selectors used to match items that should be placed under this group.",
+								"items": {
+									"type": "string"
+								}
+							}
+						}
+					}
 				}
 			}
 		}

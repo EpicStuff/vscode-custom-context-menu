@@ -7,10 +7,26 @@
 (function() {
   console.log("Hello from custom_context_menu.js~");
   const selectors = %selectors%;
+  const groups = %groups%;
 
-  const css_selectors = selectors
-    .join(",\n")
-    .replaceAll(/([*^|])?"(.+?)"/g, '[aria-label\x241="\x242"]');
+  const css_selectors = buildCssSelectors(selectors);
+
+  function buildCssSelectors(list) {
+    return list
+      .join(",\n")
+      .replaceAll(/([*^|])?"(.+?)"/g, '[aria-label\x241="\x242"]');
+  }
+
+  function buildCssSelectorList(list) {
+    if (!Array.isArray(list)) {
+      return [];
+    }
+    const css = buildCssSelectors(list);
+    if (!css.trim()) {
+      return [];
+    }
+    return css.split(",").map((entry) => entry.trim()).filter(Boolean);
+  }
 
   function wait_for(root) {
     const selector = ".monaco-menu-container > .monaco-scrollable-element";
@@ -66,7 +82,15 @@
           display: none !important;
         }
       }
+      .custom-contextmenu-group .action-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        opacity: 0.6;
+        pointer-events: none;
+      }
       `.replaceAll(/\s+/g, " ");
+    applyGrouping(container);
     requestAnimationFrame(() => {
       hideTrailingSeparator(container);
     });
@@ -129,5 +153,70 @@
       lastItem.dataset.autoHideSeparator = "true";
       lastItem.style.display = "none";
     }
+  }
+
+  function applyGrouping(container) {
+    if (!Array.isArray(groups) || groups.length === 0) {
+      return;
+    }
+    const actionsContainer =
+      container.querySelector(".actions") ||
+      container.querySelector(".monaco-action-bar") ||
+      container;
+    actionsContainer
+      .querySelectorAll(".custom-contextmenu-group")
+      .forEach((item) => item.remove());
+    const items = Array.from(
+      actionsContainer.querySelectorAll(".action-item")
+    ).filter((item) => !item.classList.contains("custom-contextmenu-group"));
+    const isSeparator = item =>
+      item.classList.contains("separator") ||
+      item.getAttribute("role") === "separator" ||
+      item.querySelector(".codicon.separator");
+    const used = new Set();
+    for (const group of groups) {
+      if (!group || typeof group.label !== "string") {
+        continue;
+      }
+      const selectorList = buildCssSelectorList(group.selectors || []);
+      if (selectorList.length === 0) {
+        continue;
+      }
+      const matchesSelectors = (item) =>
+        selectorList.some((selector) => item.matches(selector));
+      const groupItems = items.filter(
+        (item) =>
+          !used.has(item) &&
+          !isSeparator(item) &&
+          matchesSelectors(item)
+      );
+      if (groupItems.length === 0) {
+        continue;
+      }
+      const header = createGroupHeader(group.label);
+      actionsContainer.insertBefore(header, groupItems[0]);
+      let insertPoint = header;
+      for (const item of groupItems) {
+        if (item === insertPoint.nextSibling) {
+          insertPoint = item;
+        } else {
+          actionsContainer.insertBefore(item, insertPoint.nextSibling);
+          insertPoint = item;
+        }
+        used.add(item);
+      }
+    }
+  }
+
+  function createGroupHeader(label) {
+    const header = document.createElement("li");
+    header.className = "action-item custom-contextmenu-group";
+    header.setAttribute("role", "presentation");
+    const text = document.createElement("span");
+    text.className = "action-label";
+    text.setAttribute("aria-label", label);
+    text.textContent = label;
+    header.appendChild(text);
+    return header;
   }
 })();

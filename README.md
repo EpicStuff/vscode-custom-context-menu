@@ -51,6 +51,25 @@ The first entry hides the separator immediately before the `Share` menu item (wh
 
 > Note: after changing `custom-contextmenu.selectors`, re-enable the custom context menu or restart VS Code so the injected script is updated.
 
+### Grouping configuration
+
+Define `custom-contextmenu.groups` to insert labeled headers and regroup related items. Each group has a label and the same selector patterns used for hiding items. Groups are applied in order; matched items are moved under the group's label.
+
+```json
+"custom-contextmenu.groups": [
+  {
+    "label": "Navigation",
+    "selectors": ["^Go to", "Find All References"]
+  },
+  {
+    "label": "Clipboard",
+    "selectors": ["Cut", "Copy", "Paste"]
+  }
+]
+```
+
+> Note: after changing `custom-contextmenu.groups`, re-enable the custom context menu or restart VS Code so the injected script is updated.
+
 ## Note:
 
 All changes were made by ChatGPT (and I've got no idea how to make vscode extensions or do javascript, but this does seem to be working).
