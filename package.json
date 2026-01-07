@@ -19,9 +19,6 @@
 	"icon": "images/logo.png",
 	"activationEvents": ["*"],
 	"main": "./src/extension",
-	"files": [
-		"src/static/*"
-	],
 	"contributes": {
 		"commands": [
 			{
