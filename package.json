@@ -2,7 +2,7 @@
 	"name": "vscode-custom-contextmenu",
 	"displayName": "Custom Contextmenu",
 	"description": "Custom Cleaner Contextmenu for Visual Studio Code",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"publisher": "BHznJNs",
 	"engines": {
 		"vscode": "^1.92.0"
@@ -19,9 +19,6 @@
 	"icon": "images/logo.png",
 	"activationEvents": ["*"],
 	"main": "./src/extension",
-	"files": [
-		"src/static/*"
-	],
 	"contributes": {
 		"commands": [
 			{
@@ -36,17 +33,14 @@
 		"configuration": {
 			"type": "object",
 			"properties": {
-				"custom-contextmenu.showGoTos": {
-					"title": "Show Go-Tos",
-					"type": "boolean",
-					"default": true,
-					"description": "This option will control: Go to Definition, Go to Type Definition, Go to Implementations, Go to References, Go to Source Definition."
-				},
-				"custom-contextmenu.showClipboardItems": {
-					"title": "Show Clipboard Items",
-					"type": "boolean",
-					"default": true,
-					"description": "This option will control: Cut, Copy, Paste."
+				"custom-contextmenu.selectors": {
+					"title": "Context Menu Selectors",
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "List of aria-label selectors to hide from the context menu."
 				},
 				"custom-contextmenu.workbenchPath": {
 					"title": "Workbench Path Override",

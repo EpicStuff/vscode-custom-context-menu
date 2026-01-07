@@ -6,46 +6,7 @@
 
 (function() {
   console.log("Hello from custom_context_menu.js~");
-  const showGoTos = %showGoTos%;
-  const showClipboardItems = %showClipboardItems%;
-
-  const selectors = [
-    /// original selectors
-    /// '^"Go to"', // start with "Go to"
-    /// '"Change All Occurrences"', // exact match
-    /// '"Share"',
-    /// '"Share" + "_"', // separator after "Share"
-    /// '"_":has( + "Share")', // separator before "Share"
-    /// '"Command Palette..."',
-    /// '"_":has( + "Command Palette...")',
-    /// '"Layout Controls"',
-
-    '"Change All Occurrences"', // exact match
-
-    '^"Find All"', '^"查找所有"',
-    '^"Find All" + "_"', '^"查找所有" + "_"', // separator after "Share"
-    '"_":has( + ^"Find All")', '"_":has( + ^"查找所有")', // separator before "Share"
-
-    '"Share"', '"共享"',
-    '"Share" + "_"', '"共享" + "_"', // separator after "Share"
-    '"_":has( + "Share")', '"_":has( + "共享")', // separator before "Share"
-
-    '"Command Palette..."', '"命令面板..."',
-    '"_":has( + "Command Palette...")', '"_":has( + "命令面板...")',
-
-    '"Layout Controls"',
-    '^"Git"', '"_":has( + ^"Git")',
-  ];
-  if (showGoTos) {
-    // start with "Go to"
-    selectors.push('^"Go to"', '^"转到"')
-  }
-  if (showClipboardItems) {
-    selectors.push(
-      '"Cut"', '"Copy"', '"Paste"',
-      '"剪切"', '"复制"', '"粘贴"',
-    )
-  }
+  const selectors = %selectors%;
 
   const css_selectors = selectors
     .join(",\n")

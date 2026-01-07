@@ -187,11 +187,46 @@ function activate(context) {
 			vscode.window.showErrorMessage(`Error reading file: ${error.message}`);
 		}
 		const config = vscode.workspace.getConfiguration('custom-contextmenu');
-		const showGoTos = config.get('showGoTos');
-		const showClipboardItems = config.get('showClipboardItems');
-		fileContent = fileContent.replace('%showGoTos%', showGoTos);
-		fileContent = fileContent.replace('%showClipboardItems%', showClipboardItems);
+		const selectors = config.get('selectors');
+		const normalizedSelectors = Array.isArray(selectors) ? selectors : [];
+		const formattedSelectors = normalizedSelectors
+			.filter((selector) => typeof selector === 'string')
+			.map((selector) => formatSelector(selector));
+		fileContent = fileContent.replace(
+			'%selectors%',
+			JSON.stringify(formattedSelectors)
+		);
 		return `<script>${fileContent}</script>`;
+	}
+
+	function formatSelector(selector) {
+		const trimmed = selector.trim();
+		if (!trimmed) {
+			return trimmed;
+		}
+		if (trimmed.includes('"')) {
+			return trimmed;
+		}
+		if (trimmed === "_") {
+			return '"_"';
+		}
+		const separatorBeforeMatch = trimmed.match(/^_:\s*has\(\s*\+\s*(.+?)\s*\)$/);
+		if (separatorBeforeMatch) {
+			return `"_":has( + ${quoteLabel(separatorBeforeMatch[1])})`;
+		}
+		const separatorAfterMatch = trimmed.match(/^(.+?)\s*\+\s*_$/);
+		if (separatorAfterMatch) {
+			return `${quoteLabel(separatorAfterMatch[1])} + "_"`;
+		}
+		return quoteLabel(trimmed);
+	}
+
+	function quoteLabel(label) {
+		const trimmed = label.trim();
+		if (trimmed.startsWith("^")) {
+			return `^"${trimmed.slice(1)}"`;
+		}
+		return `"${trimmed}"`;
 	}
 
 	function reloadWindow() {
@@ -226,9 +261,27 @@ function activate(context) {
 		"custom-contextmenu.uninstallCustomContextmenu",
 		cmdUninstall
 	);
+	const configChangeHandler = vscode.workspace.onDidChangeConfiguration((event) => {
+		if (!event.affectsConfiguration("custom-contextmenu.selectors")) {
+			return;
+		}
+		vscode.window
+			.showInformationMessage(
+				"Custom context menu selectors updated. Re-enable the custom context menu to apply changes.",
+				"Re-enable"
+			)
+			.then((btn) => {
+				if (btn === "Re-enable") {
+					vscode.commands.executeCommand(
+						"custom-contextmenu.installCustomContextmenu"
+					);
+				}
+			});
+	});
 
 	context.subscriptions.push(installCustomCSS);
 	context.subscriptions.push(uninstallCustomCSS);
+	context.subscriptions.push(configChangeHandler);
 
 	console.log("vscode-custom-css is active!");
 	console.log("Application directory", appDir);
