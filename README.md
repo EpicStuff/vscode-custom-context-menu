@@ -1,6 +1,6 @@
 <div align="center">
     <br />
-    <img src="./images/logo.png" alt="InputShare Logo" width="160" height="160" />
+    <img src="https://raw.githubusercontent.com/EpicStuff/vscode-custom-context-menu/main/images/logo.png" alt="InputShare Logo" width="160" height="160" />
     <h1>Custom Context Menu</h1>
 </div>
 
@@ -10,7 +10,7 @@ Remove any items from VSCode's context menu (right click menu)
 
 | Before | After |
 | --- | --- |
-| ![Context Menu Before](./screenshots/before.png) | ![Context Menu After](./screenshots/after.png) |
+| ![Context Menu Before](https://raw.githubusercontent.com/EpicStuff/vscode-custom-context-menu/main/screenshots/before.png) | ![Context Menu After](https://raw.githubusercontent.com/EpicStuff/vscode-custom-context-menu/main/screenshots/after.png) |
 
 ## Usage
 
