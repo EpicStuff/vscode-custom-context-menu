@@ -228,11 +228,20 @@
     const header = document.createElement("li");
     header.className = "action-item custom-contextmenu-group";
     header.setAttribute("role", "presentation");
-    const text = document.createElement("span");
-    text.className = "action-label";
-    text.setAttribute("aria-label", label);
-    text.textContent = label;
-    header.appendChild(text);
+    header.setAttribute("tabindex", "-1");
+
+    const link = document.createElement("a");
+    link.className = "action-menu-item";
+    link.setAttribute("role", "menuitem");
+    link.setAttribute("tabindex", "0");
+
+    const labelSpan = document.createElement("span");
+    labelSpan.className = "action-label";
+    labelSpan.setAttribute("aria-label", label);
+    labelSpan.textContent = label;
+
+    link.appendChild(labelSpan);
+    header.appendChild(link);
     return header;
   }
 })();
