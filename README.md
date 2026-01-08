@@ -1,23 +1,23 @@
 <div align="center">
     <br />
     <img src="./images/logo.png" alt="InputShare Logo" width="160" height="160" />
-    <h1>Custom Contextmenu</h1>
+    <h1>Custom Context Menu</h1>
 </div>
 
-Remove any items from VSCode's contextmenu (right click menu)
+Remove any items from VSCode's context menu (right click menu)
 
 ## Screenshots
 
 | Before | After |
 | --- | --- |
-| ![Contextmenu Before](./screenshots/before.png) | ![Contextmenu After](./screenshots/after.png) |
+| ![Context Menu Before](./screenshots/before.png) | ![Context Menu After](./screenshots/after.png) |
 
 ## Usage
 
 &emsp;1\. install this extension in VSCode  
-&emsp;1.5. manually set `custom-contextmenu.workbenchPath` (the auto-detection likely does not work) by locating your VS Code installation (e.g., right-click the VS Code shortcut and choose "Open file location"), searching for `workbench.html`/`workbench.esm.html`, then right-clicking the file and choosing "Copy as path"; set that path and re-run `Enable Custom Contextmenu`  
+&emsp;1.5. manually set `custom-contextmenu.workbenchPath` (the auto-detection likely does not work) by locating your VS Code installation (e.g., right-click the VS Code shortcut and choose "Open file location"), searching for `workbench.html`/`workbench.esm.html`, then right-clicking the file and choosing "Copy as path"; set that path and re-run `Enable Custom Context Menu`  
 &emsp;2. open Command Pallete with `F1` or `ctrl+shift+p`  
-&emsp;3. select `Enable Custom Contextmenu`  
+&emsp;3. select `Enable Custom Context Menu`  
 
 ### Selectors configuration
 

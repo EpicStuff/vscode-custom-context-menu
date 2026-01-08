@@ -70,7 +70,7 @@ function activate(context) {
 
 	async function cmdInstall() {
 		const uuidSession = uuid.v4();
-		console.log("contextmenu", "enable")
+		console.log("context menu", "enable")
 		await createBackup(uuidSession);
 		await performPatch(uuidSession);
 		enabledRestart();
@@ -291,6 +291,6 @@ exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-	vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
+vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
 }
 exports.deactivate = deactivate;

@@ -1,8 +1,8 @@
 {
-	"name": "vscode-custom-contextmenu",
-	"displayName": "Custom Contextmenu",
-	"description": "Custom Cleaner Contextmenu for Visual Studio Code",
-	"version": "0.2.0",
+	"name": "custom-context-menu",
+	"displayName": "Custom Context Menu",
+	"description": "Custom Context Menu Cleaner for Visual Studio Code",
+	"version": "0.2.1",
 	"publisher": "EpicStuff",
 	"engines": {
 		"vscode": "^1.92.0"
@@ -10,10 +10,10 @@
 	"categories": ["Other"],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/EpicStuff/vscode-custom-contextmenu"
+		"url": "https://github.com/EpicStuff/vscode-custom-context-menu"
 	},
 	"bugs": {
-		"url": "https://github.com/EpicStuff/vscode-custom-contextmenu/issues"
+		"url": "https://github.com/EpicStuff/vscode-custom-context-menu/issues"
 	},
 	"preview": true,
 	"icon": "images/logo.png",
@@ -23,11 +23,11 @@
 		"commands": [
 			{
 				"command": "custom-contextmenu.installCustomContextmenu",
-				"title": "Enable Custom Contextmenu"
+				"title": "Enable Custom Context Menu"
 			},
 			{
 				"command": "custom-contextmenu.uninstallCustomContextmenu",
-				"title": "Disable Custom Contextmenu"
+				"title": "Disable Custom Context Menu"
 			}
 		],
 		"configuration": {
