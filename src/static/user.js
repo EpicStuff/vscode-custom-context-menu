@@ -165,6 +165,7 @@
       return;
     }
     const actionsContainer =
+      container.querySelector(".actions-container") ||
       container.querySelector(".actions") ||
       container.querySelector(".monaco-action-bar") ||
       container;
@@ -198,14 +199,29 @@
       if (groupItems.length === 0) {
         continue;
       }
+      const parentNode = groupItems[0].parentNode;
+      if (!parentNode) {
+        continue;
+      }
       const header = createGroupHeader(group.label);
-      actionsContainer.insertBefore(header, groupItems[0]);
+      if (parentNode.contains(groupItems[0])) {
+        parentNode.insertBefore(header, groupItems[0]);
+      } else {
+        parentNode.appendChild(header);
+      }
       let insertPoint = header;
       for (const item of groupItems) {
+        const targetParent = item.parentNode || parentNode;
+        if (targetParent !== parentNode) {
+          continue;
+        }
         if (item === insertPoint.nextSibling) {
           insertPoint = item;
+        } else if (insertPoint.parentNode === parentNode) {
+          parentNode.insertBefore(item, insertPoint.nextSibling);
+          insertPoint = item;
         } else {
-          actionsContainer.insertBefore(item, insertPoint.nextSibling);
+          parentNode.appendChild(item);
           insertPoint = item;
         }
         used.add(item);
