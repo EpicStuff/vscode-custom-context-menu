@@ -15,7 +15,7 @@
 	"bugs": {
 		"url": "https://github.com/EpicStuff/vscode-custom-context-menu/issues"
 	},
-	"preview": true,
+	"preview": false,
 	"icon": "images/logo.png",
 	"activationEvents": ["*"],
 	"main": "./src/extension",
