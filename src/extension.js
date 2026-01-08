@@ -23,11 +23,22 @@ function activate(context) {
 	const BackupFilePath = uuid => path.join(workbenchDir, `workbench.${uuid}.bak-custom-css`);
 
 	function resolveWorkbenchHtmlFile(appRoot, workbenchPath) {
+		const baseCandidates = appRoot
+			? [
+					path.join(appRoot, "out", "vs", "code"),
+					path.join(appRoot, "out", "vs", "workbench"),
+					path.join(appRoot, "vs", "code"),
+					path.join(appRoot, "vs", "workbench"),
+			  ]
+			: [];
+
 		const htmlCandidates = [
-			path.join("electron-sandbox", "workbench", "workbench.html"),
-			path.join("electron-sandbox", "workbench", "workbench.esm.html"),
 			"workbench.html",
 			"workbench.esm.html",
+			path.join("electron-browser", "workbench", "workbench.html"),
+			path.join("electron-browser", "workbench", "workbench.esm.html"),
+			path.join("electron-sandbox", "workbench", "workbench.html"),
+			path.join("electron-sandbox", "workbench", "workbench.esm.html"),
 		];
 
 		const resolveCandidate = basePath => {
@@ -62,15 +73,20 @@ function activate(context) {
 			return null;
 		}
 
-		const base = path.join(appRoot, "vs", "code");
-		return resolveCandidate(base);
+		for (const base of baseCandidates) {
+			const resolved = resolveCandidate(base);
+			if (resolved) {
+				return resolved;
+			}
+		}
+		return null;
 	}
 
 	// ####  main commands ######################################################
 
 	async function cmdInstall() {
 		const uuidSession = uuid.v4();
-		console.log("contextmenu", "enable")
+		console.log("context menu", "enable")
 		await createBackup(uuidSession);
 		await performPatch(uuidSession);
 		enabledRestart();
@@ -321,6 +337,6 @@ exports.activate = activate;
 
 // this method is called when your extension is deactivated
 function deactivate() {
-	vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
+vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
 }
 exports.deactivate = deactivate;

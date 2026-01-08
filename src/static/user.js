@@ -125,11 +125,16 @@
   function hideTrailingSeparator(container) {
     const items = Array.from(container.querySelectorAll(".action-item"));
     const isRendered = item => {
-      const style = getComputedStyle(item);
+      const label = item.querySelector(".action-label, .action-menu-item");
+      const target = label || item;
+      const itemStyle = getComputedStyle(item);
+      const targetStyle = getComputedStyle(target);
       return (
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        item.getClientRects().length > 0
+        itemStyle.display !== "none" &&
+        itemStyle.visibility !== "hidden" &&
+        targetStyle.display !== "none" &&
+        targetStyle.visibility !== "hidden" &&
+        target.getClientRects().length > 0
       );
     };
     const isSeparator = item =>

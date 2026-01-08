@@ -1,26 +1,28 @@
 <div align="center">
     <br />
     <img src="./images/logo.png" alt="InputShare Logo" width="160" height="160" />
-    <h1>Custom Contextmenu</h1>
+    <h1>Custom Context Menu</h1>
 </div>
 
-Make the contextmenu of VSCode cleaner!
+Remove any items from VSCode's context menu (right click menu)
 
 ## Screenshots
 
 | Before | After |
 | --- | --- |
-| ![Contextmenu Before](./screenshots/before.png) | ![Contextmenu After](./screenshots/after.png) |
+| ![Context Menu Before](./screenshots/before.png) | ![Context Menu After](./screenshots/after.png) |
 
 ## Usage
 
-1. install this extension in VSCode
-2. open Command Pallete with `F1` or `ctrl+shift+p`
-3. select `Enable Custom Contextmenu`
+&emsp;1\. install this extension in VSCode  
+&emsp;1.5. optionaly, manually set `custom-contextmenu.workbenchPath` by locating your VS Code installation (e.g., right-click the VS Code shortcut and choose "Open file location"), searching for `workbench.html`/`workbench.esm.html`, then right-clicking the file and choosing "Copy as path"; set that path and re-run `Enable Custom Context Menu`  
+&emsp;2. configure `custom-contextmenu.selectors`, see [Selectors configuration](#selectors-configuration)  
+&emsp;3. open Command Pallete with `F1` or `ctrl+shift+p`  
+&emsp;4. select `Enable Custom Context Menu`  
 
 ### Selectors configuration
 
-Set `custom-contextmenu.selectors` in your VS Code settings to hide context menu items by their aria-label. Each entry is a selector pattern that the extension converts into an attribute selector before filtering the menu items. The extension will add quotes for you, including separator patterns and `^`-prefixed starts-with matches.
+Set `custom-contextmenu.selectors` in your VS Code settings to hide context menu items by their label. Example:
 
 ```json
 "custom-contextmenu.selectors": [
@@ -72,4 +74,4 @@ Define `custom-contextmenu.groups` to insert labeled headers and regroup related
 
 ## Note:
 
-All changes were made by ChatGPT (and I've got no idea how to make vscode extensions or do javascript, but this does seem to be working).
+All changes were made by ChatGPT (and I've got no idea how to make vscode extensions or do javascript, but this extension does seem to be working).
