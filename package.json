@@ -1,8 +1,8 @@
 {
-	"name": "vscode-custom-contextmenu",
-	"displayName": "Custom Contextmenu",
-	"description": "Custom Cleaner Contextmenu for Visual Studio Code",
-	"version": "0.2.0",
+	"name": "custom-context-menu",
+	"displayName": "Custom Context Menu",
+	"description": "Custom Context Menu Cleaner for Visual Studio Code",
+	"version": "0.2.1",
 	"publisher": "EpicStuff",
 	"engines": {
 		"vscode": "^1.92.0"
