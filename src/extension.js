@@ -208,9 +208,18 @@ function activate(context) {
 		const formattedSelectors = normalizedSelectors
 			.filter((selector) => typeof selector === 'string')
 			.map((selector) => formatSelector(selector));
+		const groups = config.get('groups');
+		const normalizedGroups = Array.isArray(groups) ? groups : [];
+		const formattedGroups = normalizedGroups
+			.map((group) => formatGroup(group))
+			.filter((group) => group);
 		fileContent = fileContent.replace(
 			'%selectors%',
 			JSON.stringify(formattedSelectors)
+		);
+		fileContent = fileContent.replace(
+			'%groups%',
+			JSON.stringify(formattedGroups)
 		);
 		return `<script>${fileContent}</script>`;
 	}
@@ -243,6 +252,24 @@ function activate(context) {
 			return `^"${trimmed.slice(1)}"`;
 		}
 		return `"${trimmed}"`;
+	}
+
+	function formatGroup(group) {
+		if (!group || typeof group !== 'object') {
+			return null;
+		}
+		const label = typeof group.label === 'string' ? group.label.trim() : '';
+		if (!label) {
+			return null;
+		}
+		const selectors = Array.isArray(group.selectors) ? group.selectors : [];
+		const formattedSelectors = selectors
+			.filter((selector) => typeof selector === 'string')
+			.map((selector) => formatSelector(selector));
+		return {
+			label,
+			selectors: formattedSelectors,
+		};
 	}
 
 	function reloadWindow() {
@@ -278,12 +305,15 @@ function activate(context) {
 		cmdUninstall
 	);
 	const configChangeHandler = vscode.workspace.onDidChangeConfiguration((event) => {
-		if (!event.affectsConfiguration("custom-contextmenu.selectors")) {
+		if (
+			!event.affectsConfiguration("custom-contextmenu.selectors") &&
+			!event.affectsConfiguration("custom-contextmenu.groups")
+		) {
 			return;
 		}
 		vscode.window
 			.showInformationMessage(
-				"Custom context menu selectors updated. Re-enable the custom context menu to apply changes.",
+				"Custom context menu settings updated. Re-enable the custom context menu to apply changes.",
 				"Re-enable"
 			)
 			.then((btn) => {
