@@ -68,8 +68,15 @@
     }
     for (let item of container.querySelectorAll(".action-item")) {
       const label = item.querySelector(".action-label");
-      const aria_label = label?.getAttribute("aria-label") || "_";
+      const rawLabel =
+        label?.getAttribute("aria-label") ||
+        label?.textContent ||
+        "_";
+      const aria_label = rawLabel.replace(/\s+/g, " ").trim() || "_";
       item.setAttribute("aria-label", aria_label);
+      if (label && aria_label) {
+        label.setAttribute("aria-label", aria_label);
+      }
     }
 
     const menu = container.parentNode;
