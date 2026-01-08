@@ -38,10 +38,12 @@
 
   // get mouse position
   let mouse_y = 0;
+  let last_mouse_time = 0;
   document.addEventListener("mouseup", (e) => {
     // bug: not working in titlebar
     if (e.button === 2) {
       mouse_y = e.clientY;
+      last_mouse_time = Date.now();
     }
   });
 
@@ -73,6 +75,10 @@
 
     // fix context menu position
     if (menu.matches(".monaco-submenu")) {
+      return;
+    }
+    const is_recent_right_click = Date.now() - last_mouse_time < 1000;
+    if (!is_recent_right_click) {
       return;
     }
     let menu_top = parseInt(menu.style.top);
