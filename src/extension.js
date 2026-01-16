@@ -1,8 +1,13 @@
 const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const { execFile } = require("child_process");
+const { promisify } = require("util");
 const msg = require("./messages").messages;
 const uuid = require("uuid");
+
+const execFileAsync = promisify(execFile);
 
 function activate(context) {
 	const config = vscode.workspace.getConfiguration("custom-contextmenu");
@@ -125,7 +130,7 @@ function activate(context) {
 		try {
 			let html = await fs.promises.readFile(htmlFile, "utf-8");
 			html = clearExistingPatches(html);
-			await fs.promises.writeFile(BackupFilePath(uuidSession), html, "utf-8");
+			await writeFileWithFallback(BackupFilePath(uuidSession), html);
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			throw e;
@@ -135,8 +140,8 @@ function activate(context) {
 	async function restoreBackup(backupFilePath) {
 		try {
 			if (fs.existsSync(backupFilePath)) {
-				await fs.promises.unlink(htmlFile);
-				await fs.promises.copyFile(backupFilePath, htmlFile);
+				await deleteFileWithFallback(htmlFile);
+				await copyFileWithFallback(backupFilePath, htmlFile);
 			}
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
@@ -147,10 +152,22 @@ function activate(context) {
 	async function deleteBackupFiles() {
 		const htmlDir = path.dirname(htmlFile);
 		const htmlDirItems = await fs.promises.readdir(htmlDir);
+		const elevatedDeletes = [];
 		for (const item of htmlDirItems) {
 			if (item.endsWith(".bak-custom-css")) {
-				await fs.promises.unlink(path.join(htmlDir, item));
+				const filePath = path.join(htmlDir, item);
+				try {
+					await fs.promises.unlink(filePath);
+				} catch (error) {
+					if (!isPermissionError(error)) {
+						throw error;
+					}
+					elevatedDeletes.push(filePath);
+				}
 			}
+		}
+		if (elevatedDeletes.length > 0) {
+			await runElevatedCommand("rm", ["-f", ...elevatedDeletes]);
 		}
 	}
 
@@ -171,7 +188,7 @@ function activate(context) {
 				"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</html>"
 		);
 		try {
-			await fs.promises.writeFile(htmlFile, html, "utf-8");
+			await writeFileWithFallback(htmlFile, html);
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			disabledRestart();
@@ -192,6 +209,65 @@ function activate(context) {
 			/<meta\b[^>]*http-equiv=(?:"|')Content-Security-Policy(?:"|')[^>]*>/gi,
 			""
 		);
+	}
+
+	function isPermissionError(error) {
+		return error && (error.code === "EACCES" || error.code === "EPERM");
+	}
+
+	async function runElevatedCommand(command, args) {
+		if (process.platform !== "linux") {
+			const error = new Error("Elevated write is only supported on Linux.");
+			error.code = "UNSUPPORTED_PLATFORM";
+			throw error;
+		}
+		await execFileAsync("pkexec", [command, ...args]);
+	}
+
+	async function writeFileWithElevated(filePath, content) {
+		const tempDir = await fs.promises.mkdtemp(
+			path.join(os.tmpdir(), "vscode-custom-contextmenu-")
+		);
+		const tempFilePath = path.join(tempDir, path.basename(filePath));
+		try {
+			await fs.promises.writeFile(tempFilePath, content, "utf-8");
+			await runElevatedCommand("cp", [tempFilePath, filePath]);
+		} finally {
+			await fs.promises.rm(tempDir, { recursive: true, force: true });
+		}
+	}
+
+	async function writeFileWithFallback(filePath, content) {
+		try {
+			await fs.promises.writeFile(filePath, content, "utf-8");
+		} catch (error) {
+			if (!isPermissionError(error)) {
+				throw error;
+			}
+			await writeFileWithElevated(filePath, content);
+		}
+	}
+
+	async function copyFileWithFallback(sourcePath, targetPath) {
+		try {
+			await fs.promises.copyFile(sourcePath, targetPath);
+		} catch (error) {
+			if (!isPermissionError(error)) {
+				throw error;
+			}
+			await runElevatedCommand("cp", [sourcePath, targetPath]);
+		}
+	}
+
+	async function deleteFileWithFallback(filePath) {
+		try {
+			await fs.promises.unlink(filePath);
+		} catch (error) {
+			if (!isPermissionError(error)) {
+				throw error;
+			}
+			await runElevatedCommand("rm", ["-f", filePath]);
+		}
 	}
 
 	async function patchScript() {

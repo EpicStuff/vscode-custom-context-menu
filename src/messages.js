@@ -1,5 +1,6 @@
 exports.messages = {
-	admin: "Run VS Code with admin privileges so the changes can be applied.",
+	admin:
+		"Enter your admin password in the prompt so the changes can be applied.",
 	enabled:
 		"Custom Context Menu enabled. Restart to take effect. " +
 		"If Code complains about it is corrupted, CLICK DON'T SHOW AGAIN. ",
