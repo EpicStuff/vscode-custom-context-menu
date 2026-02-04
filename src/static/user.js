@@ -57,8 +57,7 @@
       const label = item.querySelector(".action-label");
       const aria_label =
         label?.getAttribute("aria-label") || label?.textContent?.trim() || "_";
-      const target = item.querySelector(".action-menu-item") || item;
-      target.setAttribute("aria-label", aria_label);
+      item.setAttribute("aria-label", aria_label);
     }
 
     const menu = container.parentNode;
