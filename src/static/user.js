@@ -75,6 +75,18 @@
     requestAnimationFrame(() => {
       hideTrailingSeparator(container);
     });
+    if (!container.__customContextMenuObserver) {
+      const separatorObserver = new MutationObserver(() => {
+        hideTrailingSeparator(container);
+      });
+      separatorObserver.observe(container, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "aria-disabled", "aria-hidden"],
+      });
+      container.__customContextMenuObserver = separatorObserver;
+    }
 
     // fix context menu position
     if (menu.matches(".monaco-submenu")) {
