@@ -13,7 +13,8 @@
     .replaceAll(/([*^|])?"(.+?)"/g, '[aria-label\x241="\x242"]');
 
   function wait_for(root) {
-    const selector = ".monaco-menu-container > .monaco-scrollable-element";
+    const selector =
+      ".monaco-menu-container .monaco-scrollable-element, .monaco-menu .monaco-scrollable-element";
     new MutationObserver((mutations) => {
       for (let mutation of mutations) {
         for (let node of mutation.addedNodes) {
@@ -54,8 +55,10 @@
     }
     for (let item of container.querySelectorAll(".action-item")) {
       const label = item.querySelector(".action-label");
-      const aria_label = label?.getAttribute("aria-label") || "_";
-      item.setAttribute("aria-label", aria_label);
+      const aria_label =
+        label?.getAttribute("aria-label") || label?.textContent?.trim() || "_";
+      const target = item.querySelector(".action-menu-item") || item;
+      target.setAttribute("aria-label", aria_label);
     }
 
     const menu = container.parentNode;
