@@ -1,7 +1,7 @@
 <div align="center">
-    <br />
-    <img src="./images/logo.png" alt="InputShare Logo" width="160" height="160" />
-    <h1>Custom Context Menu</h1>
+	<br />
+	<img src="./images/logo.png" alt="InputShare Logo" width="160" height="160" />
+	<h1>Custom Context Menu</h1>
 </div>
 
 Remove any items from VSCode's context menu (right click menu)
@@ -26,11 +26,11 @@ Set `custom-contextmenu.selectors` in your VS Code settings to hide context menu
 
 ```json
 "custom-contextmenu.selectors": [
-  "^Go to",
-  "Cut",
-  "Copy",
-  "Paste",
-  "_:has( + ^Find All)"
+	"^Go to",
+	"Cut",
+	"Copy",
+	"Paste",
+	"_:has( + ^Find All)"
 ]
 ```
 
@@ -42,8 +42,8 @@ Separator examples:
 
 ```json
 "custom-contextmenu.selectors": [
-  "_:has( + Share)",
-  "Share + _"
+	"_:has( + Share)",
+	"Share + _"
 ]
 ```
 

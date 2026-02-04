@@ -29,7 +29,7 @@ function activate(context) {
 					path.join(appRoot, "out", "vs", "workbench"),
 					path.join(appRoot, "vs", "code"),
 					path.join(appRoot, "vs", "workbench"),
-			  ]
+			]
 			: [];
 
 		const htmlCandidates = [
@@ -82,7 +82,7 @@ function activate(context) {
 		return null;
 	}
 
-	// ####  main commands ######################################################
+	// #### main commands ######################################################
 
 	async function cmdInstall() {
 		const uuidSession = uuid.v4();
