@@ -77,13 +77,17 @@
     });
     if (!container.__customContextMenuObserver) {
       const separatorObserver = new MutationObserver(() => {
-        hideTrailingSeparator(container);
+        if (container.__customContextMenuRaf) {
+          return;
+        }
+        container.__customContextMenuRaf = requestAnimationFrame(() => {
+          container.__customContextMenuRaf = null;
+          hideTrailingSeparator(container);
+        });
       });
       separatorObserver.observe(container, {
         childList: true,
         subtree: true,
-        attributes: true,
-        attributeFilter: ["class", "style", "aria-disabled", "aria-hidden"],
       });
       container.__customContextMenuObserver = separatorObserver;
     }
@@ -124,7 +128,7 @@
     const isSeparator = item =>
       item.classList.contains("separator") ||
       item.getAttribute("role") === "separator" ||
-      item.querySelector(".codicon.separator");
+      item.querySelector(".codicon.separator, .action-label.separator");
     const isRendered = item => {
       const label = item.querySelector(".action-label, .action-menu-item");
       const target = label || item;
@@ -146,15 +150,34 @@
       }
     }
     const visibleItems = items.filter(isRendered);
-    const firstItem = visibleItems.at(0);
-    if (firstItem && isSeparator(firstItem)) {
-      firstItem.dataset.autoHideSeparator = "true";
-      firstItem.style.display = "none";
-    }
-    const lastItem = visibleItems.at(-1);
-    if (lastItem && isSeparator(lastItem)) {
-      lastItem.dataset.autoHideSeparator = "true";
-      lastItem.style.display = "none";
-    }
+    const getPrevNonSeparator = (startIndex) => {
+      for (let index = startIndex - 1; index >= 0; index -= 1) {
+        const candidate = visibleItems[index];
+        if (!isSeparator(candidate)) {
+          return candidate;
+        }
+      }
+      return null;
+    };
+    const getNextNonSeparator = (startIndex) => {
+      for (let index = startIndex + 1; index < visibleItems.length; index += 1) {
+        const candidate = visibleItems[index];
+        if (!isSeparator(candidate)) {
+          return candidate;
+        }
+      }
+      return null;
+    };
+    visibleItems.forEach((item, index) => {
+      if (!isSeparator(item)) {
+        return;
+      }
+      const prevNonSeparator = getPrevNonSeparator(index);
+      const nextNonSeparator = getNextNonSeparator(index);
+      if (!prevNonSeparator || !nextNonSeparator) {
+        item.dataset.autoHideSeparator = "true";
+        item.style.display = "none";
+      }
+    });
   }
 })();
