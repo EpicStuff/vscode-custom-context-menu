@@ -72,6 +72,22 @@
     requestAnimationFrame(() => {
       hideTrailingSeparator(container);
     });
+    if (!container.__customContextMenuObserver) {
+      const separatorObserver = new MutationObserver(() => {
+        if (container.__customContextMenuRaf) {
+          return;
+        }
+        container.__customContextMenuRaf = requestAnimationFrame(() => {
+          container.__customContextMenuRaf = null;
+          hideTrailingSeparator(container);
+        });
+      });
+      separatorObserver.observe(container, {
+        childList: true,
+        subtree: true,
+      });
+      container.__customContextMenuObserver = separatorObserver;
+    }
 
     // fix context menu position
     if (menu.matches(".monaco-submenu")) {
