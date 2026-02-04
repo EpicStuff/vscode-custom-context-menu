@@ -122,9 +122,23 @@
 
   function hideTrailingSeparator(container) {
     const items = Array.from(container.querySelectorAll(".action-item"));
-    const isRendered = item => {
+    const getSeparatorElement = item => {
+      const separator = item.querySelector(".action-label.separator");
+      if (separator && separator.closest(".action-item") === item) {
+        return separator;
+      }
+      return null;
+    };
+    const getVisibilityTarget = item => {
+      const separator = getSeparatorElement(item);
+      if (separator) {
+        return separator;
+      }
       const label = item.querySelector(".action-label, .action-menu-item");
-      const target = label || item;
+      return label || item;
+    };
+    const isRendered = item => {
+      const target = getVisibilityTarget(item);
       const itemStyle = getComputedStyle(item);
       const targetStyle = getComputedStyle(target);
       return (
@@ -136,6 +150,7 @@
       );
     };
     const isSeparator = item =>
+      getSeparatorElement(item) ||
       item.classList.contains("separator") ||
       item.getAttribute("role") === "separator" ||
       item.querySelector(".codicon.separator");
