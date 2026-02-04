@@ -137,6 +137,11 @@
       const label = item.querySelector(".action-label, .action-menu-item");
       return label || item;
     };
+    const isSeparator = item =>
+      getSeparatorElement(item) ||
+      item.classList.contains("separator") ||
+      item.getAttribute("role") === "separator" ||
+      item.querySelector(".codicon.separator");
     const isRendered = item => {
       const target = getVisibilityTarget(item);
       const itemStyle = getComputedStyle(item);
@@ -148,19 +153,18 @@
         target.offsetHeight > 0 ||
         item.offsetWidth > 0 ||
         item.offsetHeight > 0;
+      const hasSeparatorBorder =
+        isSeparator(item) &&
+        (parseFloat(targetStyle.borderTopWidth) > 0 ||
+          parseFloat(targetStyle.borderBottomWidth) > 0);
       return (
         itemStyle.display !== "none" &&
         itemStyle.visibility !== "hidden" &&
         targetStyle.display !== "none" &&
         targetStyle.visibility !== "hidden" &&
-        hasRects
+        (hasRects || hasSeparatorBorder)
       );
     };
-    const isSeparator = item =>
-      getSeparatorElement(item) ||
-      item.classList.contains("separator") ||
-      item.getAttribute("role") === "separator" ||
-      item.querySelector(".codicon.separator");
     for (const item of items) {
       if (item.dataset.autoHideSeparator === "true") {
         item.style.removeProperty("display");
