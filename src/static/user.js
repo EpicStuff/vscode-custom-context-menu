@@ -142,7 +142,12 @@
       const itemStyle = getComputedStyle(item);
       const targetStyle = getComputedStyle(target);
       const hasRects =
-        target.getClientRects().length > 0 || item.getClientRects().length > 0;
+        target.getClientRects().length > 0 ||
+        item.getClientRects().length > 0 ||
+        target.offsetWidth > 0 ||
+        target.offsetHeight > 0 ||
+        item.offsetWidth > 0 ||
+        item.offsetHeight > 0;
       return (
         itemStyle.display !== "none" &&
         itemStyle.visibility !== "hidden" &&
