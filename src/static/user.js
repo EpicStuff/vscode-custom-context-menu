@@ -138,7 +138,8 @@
 		const isSeparator = item =>
 			item.classList.contains("separator") ||
 			item.getAttribute("role") === "separator" ||
-			item.querySelector(".codicon.separator");
+			item.querySelector(".codicon.separator") ||
+			item.querySelector(".action-label.separator, .separator");
 		for (const item of items) {
 			if (item.dataset.autoHideSeparator === "true") {
 				item.style.removeProperty("display");
