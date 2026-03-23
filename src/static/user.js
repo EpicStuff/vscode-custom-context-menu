@@ -54,7 +54,11 @@
 		}
 		for (let item of container.querySelectorAll(".action-item")) {
 			const label = item.querySelector(".action-label");
-			const aria_label = label?.getAttribute("aria-label") || "_";
+			const aria_label =
+				(label?.getAttribute("aria-label") || label?.textContent || "_")
+					.replaceAll("…", "...")
+					.replaceAll(/\s+/g, " ")
+					.trim();
 			item.setAttribute("aria-label", aria_label);
 		}
 
