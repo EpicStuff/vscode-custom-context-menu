@@ -54,7 +54,9 @@
 		}
 		for (let item of container.querySelectorAll(".action-item")) {
 			const label = item.querySelector(".action-label");
-			const aria_label = label?.getAttribute("aria-label") || "_";
+			const aria_label =
+				(label?.getAttribute("aria-label") || label?.textContent || "_")
+					.replaceAll("…", "...") .replaceAll(/\s+/g, " ") .trim();
 			item.setAttribute("aria-label", aria_label);
 		}
 
@@ -121,40 +123,49 @@
 	}
 
 	function hideTrailingSeparator(container) {
-		const items = Array.from(container.querySelectorAll(".action-item"));
+		// By ChatGPT
+		const items = Array.from(
+			container.querySelectorAll(".action-item, .separator, [role='separator']")
+		);
+		const isSeparator = item =>
+			item.classList.contains("separator") ||
+			item.getAttribute("role") === "separator" ||
+			item.querySelector(".codicon.separator");
 		const isRendered = item => {
+			const itemStyle = getComputedStyle(item);
+			if (itemStyle.display === "none" || itemStyle.visibility === "hidden") {
+				return false;
+			}
+			if (isSeparator(item)) {
+				return true;
+			}
 			const label = item.querySelector(".action-label, .action-menu-item");
 			const target = label || item;
-			const itemStyle = getComputedStyle(item);
 			const targetStyle = getComputedStyle(target);
 			return (
-				itemStyle.display !== "none" &&
-				itemStyle.visibility !== "hidden" &&
 				targetStyle.display !== "none" &&
 				targetStyle.visibility !== "hidden" &&
 				target.getClientRects().length > 0
 			);
 		};
-		const isSeparator = item =>
-			item.classList.contains("separator") ||
-			item.getAttribute("role") === "separator" ||
-			item.querySelector(".codicon.separator");
 		for (const item of items) {
 			if (item.dataset.autoHideSeparator === "true") {
 				item.style.removeProperty("display");
 				delete item.dataset.autoHideSeparator;
 			}
 		}
-		const visibleItems = items.filter(isRendered);
-		const firstItem = visibleItems.at(0);
-		if (firstItem && isSeparator(firstItem)) {
-			firstItem.dataset.autoHideSeparator = "true";
-			firstItem.style.display = "none";
+			const visibleItems = items.filter(isRendered);
+			let start = 0;
+			while (start < visibleItems.length && isSeparator(visibleItems[start])) {
+				visibleItems[start].dataset.autoHideSeparator = "true";
+				visibleItems[start].style.display = "none";
+				start++;
+			}
+			let end = visibleItems.length - 1;
+			while (end >= 0 && isSeparator(visibleItems[end])) {
+				visibleItems[end].dataset.autoHideSeparator = "true";
+				visibleItems[end].style.display = "none";
+				end--;
+			}
 		}
-		const lastItem = visibleItems.at(-1);
-		if (lastItem && isSeparator(lastItem)) {
-			lastItem.dataset.autoHideSeparator = "true";
-			lastItem.style.display = "none";
-		}
-	}
-})();
+	})();
