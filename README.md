@@ -26,6 +26,7 @@ Set `custom-contextmenu.selectors` in your VS Code settings to hide context menu
 
 ```json
 "custom-contextmenu.selectors": [
+	"Command Palette...",
 	"^Go to",
 	"Cut",
 	"Copy",
