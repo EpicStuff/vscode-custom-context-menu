@@ -150,15 +150,22 @@
 			}
 		}
 		const visibleItems = items.filter(isRendered);
-		const firstItem = visibleItems.at(0);
-		if (firstItem && isSeparator(firstItem)) {
-			firstItem.dataset.autoHideSeparator = "true";
-			firstItem.style.display = "none";
-		}
-		const lastItem = visibleItems.at(-1);
-		if (lastItem && isSeparator(lastItem)) {
-			lastItem.dataset.autoHideSeparator = "true";
-			lastItem.style.display = "none";
+		for (let i = 0; i < visibleItems.length; i++) {
+			const item = visibleItems[i];
+			if (!isSeparator(item)) {
+				continue;
+			}
+			const prev = visibleItems[i - 1];
+			const next = visibleItems[i + 1];
+			const shouldHide =
+				!prev ||
+				!next ||
+				isSeparator(prev) ||
+				isSeparator(next);
+			if (shouldHide) {
+				item.dataset.autoHideSeparator = "true";
+				item.style.display = "none";
+			}
 		}
 	}
 })();
