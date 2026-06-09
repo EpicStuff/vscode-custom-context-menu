@@ -55,7 +55,14 @@
 
 	function applyHide(container) {
 		if (container.matches('.titlebar-container *')) return;
-		const items = Array.from(container.querySelectorAll('.action-item'));
+		// Include standalone separators alongside action-items so the trim and
+		// adjacent-collapse passes can reach them — newer VSCode menus (and some
+		// extension contributions) emit separators as plain .separator or
+		// [role="separator"] elements rather than .action-item children. Filter
+		// out matches that are nested inside other matches (e.g. a .separator
+		// codicon inside an .action-item) to avoid double-counting.
+		const matches = Array.from(container.querySelectorAll('.action-item, .separator, [role="separator"]'));
+		const items = matches.filter(el => !matches.some(other => other !== el && other.contains(el)));
 		if (items.length === 0) return;
 
 		const labels = items.map(labelOf);
