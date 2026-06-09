@@ -40,7 +40,7 @@
 	function isSeparator(item) {
 		return item.classList.contains('separator')
 			|| item.getAttribute('role') === 'separator'
-			|| !!item.querySelector('.codicon.separator');
+			|| !!item.querySelector('.action-label.separator, .codicon.separator');
 	}
 
 	function labelOf(item) {
