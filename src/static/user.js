@@ -78,10 +78,21 @@
 			}
 		}
 
+		// "visible after our pass" = not in hide[] AND not already hidden by some
+		// other rule (extension CSS, when-clauses, etc.). Using computed style
+		// here lets trim/collapse see across externally-hidden items so a sep
+		// next to a when-hidden command still gets trimmed.
+		const isVisible = (i) => {
+			if (hide[i]) return false;
+			const style = getComputedStyle(items[i]);
+			return style.display !== 'none' && style.visibility !== 'hidden';
+		};
+
+		// Trim leading separators and collapse adjacent ones in one forward pass.
 		let leadingDone = false;
 		let lastVisibleWasSep = false;
 		for (let i = 0; i < items.length; i++) {
-			if (hide[i]) continue;
+			if (!isVisible(i)) continue;
 			if (seps[i]) {
 				if (!leadingDone || lastVisibleWasSep) hide[i] = true;
 				else lastVisibleWasSep = true;
@@ -90,8 +101,9 @@
 				lastVisibleWasSep = false;
 			}
 		}
+		// Trim trailing separators.
 		for (let i = items.length - 1; i >= 0; i--) {
-			if (hide[i]) continue;
+			if (!isVisible(i)) continue;
 			if (seps[i]) hide[i] = true;
 			else break;
 		}
