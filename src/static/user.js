@@ -1,171 +1,131 @@
-/**
- * modified from:
- * author: https://github.com/Long0x0
- * source: https://github.com/microsoft/vscode/issues/75930#issuecomment-2310690013
- */
+(function () {
+	const RAW_SELECTORS = %selectors%;
 
-(function() {
-	console.log("Hello from custom_context_menu.js~");
-	const selectors = %selectors%;
-
-	const css_selectors = selectors
-		.join(",\n")
-		.replaceAll(/([*^|])?"(.+?)"/g, '[aria-label\x241="\x242"]');
-
-	function wait_for(root) {
-		const selector = ".monaco-menu-container > .monaco-scrollable-element";
-		new MutationObserver((mutations) => {
-			for (let mutation of mutations) {
-				for (let node of mutation.addedNodes) {
-					if (node.matches?.(selector)) {
-						// console.log(">>", node);
-						modify(node);
-					}
-				}
-			}
-		}).observe(root, { subtree: true, childList: true });
+	function stripOuterQuotes(s) {
+		const m = s.match(/^"(.*)"$/);
+		return m ? m[1] : s;
 	}
 
-	// context menu in editor
-	Element.prototype._attachShadow = Element.prototype.attachShadow;
+	function parseLabelOnly(s) {
+		s = stripOuterQuotes(s.trim());
+		const carat = s.match(/^\^(.+)$/);
+		if (carat) return { prefix: true, label: stripOuterQuotes(carat[1].trim()) };
+		return { prefix: false, label: s };
+	}
+
+	function parseSelector(raw) {
+		let s = String(raw).trim();
+		if (!s) return null;
+		s = stripOuterQuotes(s);
+		if (s === '_') return { kind: 'sep' };
+
+		let m = s.match(/^"?_"?:\s*has\(\s*\+\s*(.+?)\s*\)$/);
+		if (m) {
+			const inner = parseLabelOnly(m[1]);
+			return inner && { kind: 'sep-before', ...inner };
+		}
+
+		m = s.match(/^(.+?)\s*\+\s*"?_"?$/);
+		if (m) {
+			const inner = parseLabelOnly(m[1]);
+			return inner && { kind: 'sep-after', ...inner };
+		}
+
+		const inner = parseLabelOnly(s);
+		return inner && { kind: 'self', ...inner };
+	}
+
+	const SELECTORS = RAW_SELECTORS.map(parseSelector).filter(Boolean);
+
+	function isSeparator(item) {
+		return item.classList.contains('separator')
+			|| item.getAttribute('role') === 'separator'
+			|| !!item.querySelector('.codicon.separator');
+	}
+
+	function labelOf(item) {
+		const el = item.querySelector('.action-label');
+		const raw = (el && (el.getAttribute('aria-label') || el.textContent)) || '';
+		return raw.replaceAll('…', '...').replaceAll(/\s+/g, ' ').trim();
+	}
+
+	function labelMatches(sel, label) {
+		return sel.prefix ? label.startsWith(sel.label) : label === sel.label;
+	}
+
+	function applyHide(container) {
+		if (container.matches('.titlebar-container *')) return;
+		const items = Array.from(container.querySelectorAll('.action-item'));
+		if (items.length === 0) return;
+
+		const labels = items.map(labelOf);
+		const seps = items.map(isSeparator);
+
+		const hide = new Array(items.length).fill(false);
+		for (let i = 0; i < items.length; i++) {
+			for (const sel of SELECTORS) {
+				if (sel.kind === 'self' && !seps[i] && labelMatches(sel, labels[i])) hide[i] = true;
+				else if (sel.kind === 'sep' && seps[i]) hide[i] = true;
+				else if (sel.kind === 'sep-after' && seps[i] && i > 0 && !seps[i-1] && labelMatches(sel, labels[i-1])) hide[i] = true;
+				else if (sel.kind === 'sep-before' && seps[i] && i < items.length-1 && !seps[i+1] && labelMatches(sel, labels[i+1])) hide[i] = true;
+			}
+		}
+
+		let leadingDone = false;
+		let lastVisibleWasSep = false;
+		for (let i = 0; i < items.length; i++) {
+			if (hide[i]) continue;
+			if (seps[i]) {
+				if (!leadingDone || lastVisibleWasSep) hide[i] = true;
+				else lastVisibleWasSep = true;
+			} else {
+				leadingDone = true;
+				lastVisibleWasSep = false;
+			}
+		}
+		for (let i = items.length - 1; i >= 0; i--) {
+			if (hide[i]) continue;
+			if (seps[i]) hide[i] = true;
+			else break;
+		}
+
+		for (let i = 0; i < items.length; i++) {
+			if (hide[i]) items[i].style.setProperty('display', 'none', 'important');
+			else items[i].style.removeProperty('display');
+		}
+	}
+
+	const MENU_SELECTOR = '.monaco-menu-container';
+
+	function processNode(node) {
+		if (node.nodeType !== 1) return;
+		if (node.matches?.(MENU_SELECTOR)) {
+			applyHide(node);
+			if (!node.__ccmObs) {
+				const o = new MutationObserver(() => applyHide(node));
+				o.observe(node, { childList: true, subtree: true });
+				node.__ccmObs = o;
+			}
+		}
+		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) {
+			applyHide(m);
+		}
+	}
+
+	function watch(root) {
+		new MutationObserver((mutations) => {
+			for (const mut of mutations) {
+				for (const node of mut.addedNodes) processNode(node);
+			}
+		}).observe(root, { childList: true, subtree: true });
+	}
+
+	const origAttachShadow = Element.prototype.attachShadow;
 	Element.prototype.attachShadow = function () {
-		const shadow = this._attachShadow({ mode: "open" });
-		wait_for(shadow);
+		const shadow = origAttachShadow.apply(this, arguments);
+		try { watch(shadow); } catch (e) { /* ignore */ }
 		return shadow;
 	};
-	// context menu in other places
-	wait_for(document);
 
-	// get mouse position
-	let mouse_y = 0;
-	let last_mouse_time = 0;
-	document.addEventListener("mouseup", (e) => {
-		// bug: not working in titlebar
-		if (e.button === 2) {
-			mouse_y = e.clientY;
-			last_mouse_time = Date.now();
-		}
-	});
-
-	function modify(container) {
-		if (container.matches('.titlebar-container *')) {
-			// skip titlebar
-			return;
-		}
-		for (let item of container.querySelectorAll(".action-item")) {
-			const label = item.querySelector(".action-label");
-			const aria_label =
-				(label?.getAttribute("aria-label") || label?.textContent || "_")
-					.replaceAll("…", "...") .replaceAll(/\s+/g, " ") .trim();
-			item.setAttribute("aria-label", aria_label);
-		}
-
-		const menu = container.parentNode;
-		const style = document.createElement("style");
-		menu.appendChild(style);
-		style.innerText = `
-			:host > .monaco-menu-container, :not(.menubar-menu-button) > .monaco-menu-container {
-				${css_selectors},
-				.visible.scrollbar.vertical, .shadow {
-					display: none !important;
-				}
-			}
-			`.replaceAll(/\s+/g, " ");
-		requestAnimationFrame(() => {
-			hideTrailingSeparator(container);
-		});
-		if (!container.__customContextMenuObserver) {
-			const separatorObserver = new MutationObserver(() => {
-				if (container.__customContextMenuRaf) {
-					return;
-				}
-				container.__customContextMenuRaf = requestAnimationFrame(() => {
-					container.__customContextMenuRaf = null;
-					hideTrailingSeparator(container);
-				});
-			});
-			separatorObserver.observe(container, {
-				childList: true,
-				subtree: true,
-			});
-			container.__customContextMenuObserver = separatorObserver;
-		}
-
-		// fix context menu position
-		if (menu.matches(".monaco-submenu")) {
-			return;
-		}
-		const is_recent_right_click = Date.now() - last_mouse_time < 1000;
-		if (!is_recent_right_click) {
-			return;
-		}
-		let menu_top = parseInt(menu.style.top);
-		const menu_height = menu.clientHeight;
-		// console.log("menu_top", menu_top, "menu_height", menu_height);
-		const titlebar_height = 40;
-		const window_height = window.innerHeight;
-		if (menu_top < titlebar_height && menu_height < 90) {
-			mouse_y = menu_top;
-		} else {
-			if (mouse_y < window_height / 2) {
-				menu_top = mouse_y;
-				if (menu_top + menu_height > window_height) {
-					menu_top = window_height - menu_height;
-				}
-			} else {
-				menu_top = mouse_y - menu_height;
-				if (menu_top < titlebar_height) {
-					menu_top = titlebar_height;
-				}
-			}
-			menu.style.top = menu_top + "px";
-		}
-	}
-
-	function hideTrailingSeparator(container) {
-		// By ChatGPT
-		const items = Array.from(
-			container.querySelectorAll(".action-item, .separator, [role='separator']")
-		);
-		const isSeparator = item =>
-			item.classList.contains("separator") ||
-			item.getAttribute("role") === "separator" ||
-			item.querySelector(".codicon.separator");
-		const isRendered = item => {
-			const itemStyle = getComputedStyle(item);
-			if (itemStyle.display === "none" || itemStyle.visibility === "hidden") {
-				return false;
-			}
-			if (isSeparator(item)) {
-				return true;
-			}
-			const label = item.querySelector(".action-label, .action-menu-item");
-			const target = label || item;
-			const targetStyle = getComputedStyle(target);
-			return (
-				targetStyle.display !== "none" &&
-				targetStyle.visibility !== "hidden" &&
-				target.getClientRects().length > 0
-			);
-		};
-		for (const item of items) {
-			if (item.dataset.autoHideSeparator === "true") {
-				item.style.removeProperty("display");
-				delete item.dataset.autoHideSeparator;
-			}
-		}
-			const visibleItems = items.filter(isRendered);
-			let start = 0;
-			while (start < visibleItems.length && isSeparator(visibleItems[start])) {
-				visibleItems[start].dataset.autoHideSeparator = "true";
-				visibleItems[start].style.display = "none";
-				start++;
-			}
-			let end = visibleItems.length - 1;
-			while (end >= 0 && isSeparator(visibleItems[end])) {
-				visibleItems[end].dataset.autoHideSeparator = "true";
-				visibleItems[end].style.display = "none";
-				end--;
-			}
-		}
-	})();
+	watch(document);
+})();
