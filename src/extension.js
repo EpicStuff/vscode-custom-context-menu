@@ -2,7 +2,6 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const msg = require("./messages").messages;
-const uuid = require("uuid");
 
 function activate(context) {
 	const config = vscode.workspace.getConfiguration("custom-contextmenu");
@@ -20,7 +19,8 @@ function activate(context) {
 		return;
 	}
 	const workbenchDir = path.dirname(htmlFile);
-	const BackupFilePath = uuid => path.join(workbenchDir, `workbench.${uuid}.bak-custom-css`);
+	const backupFile = htmlFile + ".orig";
+	const legacyBackupRe = /^workbench\.[\w-]+\.bak-custom-css$/;
 
 	function resolveWorkbenchHtmlFile(appRoot, workbenchPath) {
 		const baseCandidates = appRoot
@@ -85,88 +85,119 @@ function activate(context) {
 	// #### main commands ######################################################
 
 	async function cmdInstall() {
-		const uuidSession = uuid.v4();
-		console.log("context menu", "enable")
-		await createBackup(uuidSession);
-		await performPatch(uuidSession);
+		migrateLegacyBackups();
+		await ensureBackup();
+		await performPatch();
 		enabledRestart();
 	}
 
 	async function cmdUninstall() {
+		migrateLegacyBackups();
 		await uninstallImpl();
 		disabledRestart();
 	}
 
 	async function uninstallImpl() {
-		const backupUuid = await getBackupUuid(htmlFile);
-		if (!backupUuid) return;
-		const backupPath = BackupFilePath(backupUuid);
-		await restoreBackup(backupPath);
-		await deleteBackupFiles();
+		if (!fs.existsSync(backupFile)) return;
+		try {
+			await fs.promises.copyFile(backupFile, htmlFile);
+			await fs.promises.unlink(backupFile);
+		} catch (e) {
+			vscode.window.showInformationMessage(msg.admin);
+			throw e;
+		}
 	}
 
 	// #### Backup ################################################################
 
-	async function getBackupUuid(htmlFilePath) {
+	// One-time migration from the old workbench.<uuid>.bak-custom-css scheme.
+	// Picks the backup matching the SESSION-ID in the current workbench.html if
+	// possible, otherwise the most recently modified one. Renames to .orig and
+	// deletes the rest.
+	function migrateLegacyBackups() {
+		if (fs.existsSync(backupFile)) return;
+		let entries;
 		try {
-			const htmlContent = await fs.promises.readFile(htmlFilePath, "utf-8");
-			const m = htmlContent.match(
-				/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ([0-9a-fA-F-]+) !! -->/
-			);
-			if (!m) return null;
-			else return m[1];
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.somethingWrong + e);
-			throw e;
+			entries = fs.readdirSync(workbenchDir);
+		} catch {
+			return;
+		}
+		const legacy = entries.filter(n => legacyBackupRe.test(n));
+		if (legacy.length === 0) return;
+
+		let preferred = null;
+		try {
+			const html = fs.readFileSync(htmlFile, "utf-8");
+			const m = html.match(/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ([0-9a-fA-F-]+) !! -->/);
+			if (m) {
+				const matching = `workbench.${m[1]}.bak-custom-css`;
+				if (legacy.includes(matching)) preferred = matching;
+			}
+		} catch { /* fall through */ }
+
+		if (!preferred) {
+			preferred = legacy
+				.map(n => ({ n, t: fs.statSync(path.join(workbenchDir, n)).mtimeMs }))
+				.sort((a, b) => b.t - a.t)[0].n;
+		}
+
+		try {
+			fs.renameSync(path.join(workbenchDir, preferred), backupFile);
+		} catch {
+			return;
+		}
+		for (const n of legacy) {
+			if (n === preferred) continue;
+			try { fs.unlinkSync(path.join(workbenchDir, n)); } catch { /* ignore */ }
 		}
 	}
 
-	async function createBackup(uuidSession) {
+	// Guarantee backupFile contains the pristine workbench.html.
+	//
+	// - If the on-disk workbench.html still carries our START/END markers it is
+	//   already patched. Trust an existing backup; otherwise reconstruct one by
+	//   stripping the markers.
+	// - If it does not, it is either a first-ever install or VSCode was just
+	//   upgraded over our patched file. Either way the current contents are the
+	//   new pristine state, so refresh the backup unconditionally.
+	async function ensureBackup() {
+		let html;
 		try {
-			let html = await fs.promises.readFile(htmlFile, "utf-8");
-			html = clearExistingPatches(html);
-			await fs.promises.writeFile(BackupFilePath(uuidSession), html, "utf-8");
+			html = await fs.promises.readFile(htmlFile, "utf-8");
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			throw e;
 		}
-	}
-
-	async function restoreBackup(backupFilePath) {
+		const isPatched = /<!-- !! VSCODE-CUSTOM-CSS-START !! -->/.test(html);
 		try {
-			if (fs.existsSync(backupFilePath)) {
-				await fs.promises.unlink(htmlFile);
-				await fs.promises.copyFile(backupFilePath, htmlFile);
+			if (isPatched) {
+				if (!fs.existsSync(backupFile)) {
+					await fs.promises.writeFile(backupFile, clearExistingPatches(html), "utf-8");
+				}
+			} else {
+				await fs.promises.writeFile(backupFile, html, "utf-8");
 			}
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			throw e;
-		}
-	}
-
-	async function deleteBackupFiles() {
-		const htmlDir = path.dirname(htmlFile);
-		const htmlDirItems = await fs.promises.readdir(htmlDir);
-		for (const item of htmlDirItems) {
-			if (item.endsWith(".bak-custom-css")) {
-				await fs.promises.unlink(path.join(htmlDir, item));
-			}
 		}
 	}
 
 	// #### Patching ##############################################################
 
-	async function performPatch(uuidSession) {
-		let html = await fs.promises.readFile(htmlFile, "utf-8");
-		html = clearExistingPatches(html);
-
+	async function performPatch() {
+		let html;
+		try {
+			html = await fs.promises.readFile(backupFile, "utf-8");
+		} catch (e) {
+			vscode.window.showInformationMessage(msg.admin);
+			throw e;
+		}
+		html = disableCspMetaTag(html);
 		const injectHTML = await patchScript();
-		html = removeCspMetaTag(html);
-
 		html = html.replace(
 			/(<\/html>)/,
-			`<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ${uuidSession} !! -->\n` +
-				"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n" +
+			"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n" +
 				injectHTML +
 				"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</html>"
 		);
@@ -175,22 +206,30 @@ function activate(context) {
 		} catch (e) {
 			vscode.window.showInformationMessage(msg.admin);
 			disabledRestart();
-			return
 		}
 	}
+
 	function clearExistingPatches(html) {
 		html = html.replace(
 			/<!-- !! VSCODE-CUSTOM-CSS-START !! -->[\s\S]*?<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n*/,
 			""
 		);
+		// Strip the legacy session-id marker so reconstructed backups stay clean.
 		html = html.replace(/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [\w-]+ !! -->\n*/g, "");
+		// Re-enable any CSP meta tag we previously disabled by renaming.
+		html = html.replace(/<meta-ccm-disabled\b/g, "<meta");
 		return html;
 	}
 
-	function removeCspMetaTag(html) {
+	// We need to neuter VSCode's CSP so our inline <script> can run, but we want
+	// the change to be reversible — so rather than deleting the meta tag we just
+	// rename it. The browser ignores <meta-ccm-disabled ...> as an unknown
+	// element; clearExistingPatches restores the original <meta> on disable or
+	// when reconstructing the backup from a patched workbench.html.
+	function disableCspMetaTag(html) {
 		return html.replace(
-			/<meta\b[^>]*http-equiv=(?:"|')Content-Security-Policy(?:"|')[^>]*>/gi,
-			""
+			/<meta\b([^>]*http-equiv=(?:"|')Content-Security-Policy(?:"|')[^>]*)>/gi,
+			"<meta-ccm-disabled$1>"
 		);
 	}
 
@@ -305,8 +344,10 @@ function activate(context) {
 }
 exports.activate = activate;
 
-// this method is called when your extension is deactivated
-function deactivate() {
-vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
-}
+// Note: we deliberately do not auto-uninstall on deactivate. Extension
+// deactivation fires on every window reload (including the reload triggered
+// by Enable itself), and uninstalling there means a single Enable would
+// take effect for only one window load. The user must run "Disable Custom
+// Context Menu" explicitly to revert.
+function deactivate() {}
 exports.deactivate = deactivate;
