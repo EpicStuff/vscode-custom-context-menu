@@ -116,10 +116,44 @@
 
 	const MENU_SELECTOR = '.monaco-menu-container';
 
+	// VSCode measures the menu height before our hides run, so a tall menu
+	// near the bottom of the screen gets clamped to viewport top. After we
+	// shrink it, the menu is left stranded far from the cursor. We capture
+	// the cursor coords on contextmenu, then re-anchor the freshly-shrunk
+	// menu next to the cursor (clamping to viewport).
+	let pendingAnchor = null;
+	document.addEventListener('contextmenu', (e) => {
+		pendingAnchor = { x: e.clientX, y: e.clientY, t: Date.now() };
+	}, true);
+	function takeAnchor() {
+		if (!pendingAnchor) return null;
+		if (Date.now() - pendingAnchor.t > 250) { pendingAnchor = null; return null; }
+		const a = pendingAnchor;
+		pendingAnchor = null;
+		return a;
+	}
+
+	function repositionMenu(container, anchor) {
+		if (!anchor) return;
+		const rect = container.getBoundingClientRect();
+		if (!rect.height || !rect.width) return;
+		const vw = window.innerWidth;
+		const vh = window.innerHeight;
+		let left = anchor.x;
+		let top = anchor.y;
+		if (left + rect.width > vw) left = Math.max(0, anchor.x - rect.width);
+		if (top + rect.height > vh) top = Math.max(0, anchor.y - rect.height);
+		container.style.setProperty('left', left + 'px', 'important');
+		container.style.setProperty('top', top + 'px', 'important');
+	}
+
 	function processNode(node) {
 		if (node.nodeType !== 1) return;
 		if (node.matches?.(MENU_SELECTOR)) {
+			const isNew = !node.__ccmObs;
+			const anchor = isNew ? takeAnchor() : null;
 			applyHide(node);
+			if (isNew) repositionMenu(node, anchor);
 			if (!node.__ccmObs) {
 				const o = new MutationObserver(() => applyHide(node));
 				o.observe(node, { childList: true, subtree: true });
@@ -127,7 +161,15 @@
 			}
 		}
 		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) {
+			const isNew = !m.__ccmObs;
+			const anchor = isNew ? takeAnchor() : null;
 			applyHide(m);
+			if (isNew) repositionMenu(m, anchor);
+			if (!m.__ccmObs) {
+				const o = new MutationObserver(() => applyHide(m));
+				o.observe(m, { childList: true, subtree: true });
+				m.__ccmObs = o;
+			}
 		}
 	}
 
