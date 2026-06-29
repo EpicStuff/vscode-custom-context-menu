@@ -53,6 +53,9 @@ async function safeWriteFile(target, contents) {
 	await fs.promises.writeFile(tmp, contents, "utf-8");
 	try {
 		await pkexec(["/bin/cp", "--", tmp, target]);
+	} catch (e) {
+		e.needsPermissionFix = true;
+		throw e;
 	} finally {
 		try { await fs.promises.unlink(tmp); } catch { /* ignore */ }
 	}
@@ -65,7 +68,12 @@ async function safeRename(src, dst) {
 	} catch (e) {
 		if (!isPermissionError(e) || !canElevate()) throw e;
 	}
-	await pkexec(["/bin/mv", "-f", "--", src, dst]);
+	try {
+		await pkexec(["/bin/mv", "-f", "--", src, dst]);
+	} catch (e) {
+		e.needsPermissionFix = true;
+		throw e;
+	}
 }
 
 function activate(context) {
@@ -155,29 +163,53 @@ function activate(context) {
 	// #### main commands ######################################################
 
 	async function cmdInstall() {
-		migrateLegacyBackups();
-		await ensureBackup();
-		await performPatch();
-		enabledRestart();
+		try {
+			migrateLegacyBackups();
+			await ensureBackup();
+			await performPatch();
+			enabledRestart();
+		} catch (e) {
+			handleWriteError(e);
+		}
 	}
 
 	async function cmdUninstall() {
-		migrateLegacyBackups();
-		await uninstallImpl();
-		disabledRestart();
+		try {
+			migrateLegacyBackups();
+			await uninstallImpl();
+			disabledRestart();
+		} catch (e) {
+			handleWriteError(e);
+		}
 	}
 
 	async function uninstallImpl() {
 		if (!fs.existsSync(backupFile)) return;
-		try {
-			// One atomic rename consumes the backup and replaces workbench.html
-			// in a single syscall — when this needs pkexec, it's a single auth
-			// prompt instead of separate copy + unlink prompts.
-			await safeRename(backupFile, htmlFile);
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
+		// One atomic rename consumes the backup and replaces workbench.html
+		// in a single syscall — when this needs pkexec, it's a single auth
+		// prompt instead of separate copy + unlink prompts.
+		await safeRename(backupFile, htmlFile);
+	}
+
+	// A privileged write failed. If it was a permission problem the elevation
+	// path couldn't resolve (e.g. headless code-server with no polkit agent for
+	// pkexec), fall back to granting the current user write access via a POSIX
+	// ACL — scoped to that one user, unlike a chmod that opens the files to
+	// everyone. The command is placed in a terminal for the user to review and
+	// run with their sudo password; they then re-run Enable.
+	function handleWriteError(e) {
+		if (e && e.needsPermissionFix) {
+			const q = s => `'${String(s).replace(/'/g, "'\\''")}'`;
+			const terminal = vscode.window.createTerminal("Custom Context Menu");
+			terminal.show();
+			terminal.sendText(
+				`sudo setfacl -m u:$(whoami):rwX ${q(workbenchDir)} ${q(htmlFile)}`,
+				false
+			);
+			vscode.window.showInformationMessage(msg.terminalPermissionFix);
+			return;
 		}
+		vscode.window.showInformationMessage(msg.admin);
 	}
 
 	// #### Backup ################################################################
@@ -233,38 +265,21 @@ function activate(context) {
 	//   upgraded over our patched file. Either way the current contents are the
 	//   new pristine state, so refresh the backup unconditionally.
 	async function ensureBackup() {
-		let html;
-		try {
-			html = await fs.promises.readFile(htmlFile, "utf-8");
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
-		}
+		const html = await fs.promises.readFile(htmlFile, "utf-8");
 		const isPatched = /<!-- !! VSCODE-CUSTOM-CSS-START !! -->/.test(html);
-		try {
-			if (isPatched) {
-				if (!fs.existsSync(backupFile)) {
-					await safeWriteFile(backupFile, clearExistingPatches(html));
-				}
-			} else {
-				await safeWriteFile(backupFile, html);
+		if (isPatched) {
+			if (!fs.existsSync(backupFile)) {
+				await safeWriteFile(backupFile, clearExistingPatches(html));
 			}
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
+		} else {
+			await safeWriteFile(backupFile, html);
 		}
 	}
 
 	// #### Patching ##############################################################
 
 	async function performPatch() {
-		let html;
-		try {
-			html = await fs.promises.readFile(backupFile, "utf-8");
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
-		}
+		let html = await fs.promises.readFile(backupFile, "utf-8");
 		html = disableCspMetaTag(html);
 		const injectHTML = await patchScript();
 		html = html.replace(
@@ -273,12 +288,7 @@ function activate(context) {
 				injectHTML +
 				"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</html>"
 		);
-		try {
-			await safeWriteFile(htmlFile, html);
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			disabledRestart();
-		}
+		await safeWriteFile(htmlFile, html);
 	}
 
 	function clearExistingPatches(html) {
