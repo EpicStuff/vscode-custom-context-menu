@@ -54,5 +54,8 @@ The first entry hides the separator immediately before the `Share` menu item (wh
 > Note: after changing `custom-contextmenu.selectors`, re-enable the custom context menu or restart VS Code so the injected script is updated.
 
 ## Note:
-
-All changes were made by ChatGPT (and I've got no idea how to make vscode extensions or do javascript, but this extension does seem to be working).
+- For Mac Users: You apparently need to add this to your VS Code settings:
+	```json
+	"window.menuStyle": "custom"
+ 	```
+- All changes were made by ChatGPT or Claude (and I've got no idea how to make vscode extensions or do javascript, but this extension does seem to be working).
