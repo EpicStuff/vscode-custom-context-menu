@@ -104,6 +104,11 @@ function activate(context) {
 			path.join("electron-browser", "workbench", "workbench.esm.html"),
 			path.join("electron-sandbox", "workbench", "workbench.html"),
 			path.join("electron-sandbox", "workbench", "workbench.esm.html"),
+			// Web/server builds (code-server, VS Code Server, github.dev-style hosts)
+			// serve the workbench from a `browser/workbench` directory instead of
+			// the Electron `electron-*` ones.
+			path.join("browser", "workbench", "workbench.html"),
+			path.join("browser", "workbench", "workbench.esm.html"),
 		];
 
 		const resolveCandidate = basePath => {
