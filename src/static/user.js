@@ -37,6 +37,62 @@
 
 	const SELECTORS = RAW_SELECTORS.map(parseSelector).filter(Boolean);
 
+	// #### Item hiding via CSS ###################################################
+	// Labelled items are hidden with a stylesheet injected into each menu's shadow
+	// root (and the document), so the rule is in place *before* VSCode builds and
+	// measures the menu. VSCode then sizes and positions the already-shrunk menu
+	// itself — which is why this file no longer needs to clamp a stranded
+	// scrollbar or re-anchor the menu to the cursor. Separator trimming below
+	// stays in JS: whether a separator is leading/trailing/adjacent depends on the
+	// runtime visibility of its neighbours, which CSS can't compute reliably.
+
+	function cssEscape(s) {
+		return s.replace(/[\\"]/g, '\\$&');
+	}
+
+	// VSCode aria-labels use the "…" ellipsis; users typically type "...". Match
+	// whichever form is missing so either works in the config.
+	function labelVariants(label) {
+		const set = new Set([label]);
+		if (label.includes('...')) set.add(label.replace(/\.\.\./g, '…'));
+		if (label.includes('…')) set.add(label.replace(/…/g, '...'));
+		return [...set];
+	}
+
+	function selfSelectorToCss(sel) {
+		if (sel.kind !== 'self' || !sel.label) return null;
+		const op = sel.prefix ? '^=' : '=';
+		return labelVariants(sel.label)
+			.map(v => `.action-item:has(.action-label[aria-label${op}"${cssEscape(v)}"])`)
+			.join(', ');
+	}
+
+	const cssSelectors = SELECTORS.map(selfSelectorToCss).filter(Boolean).join(',\n');
+	const cssText = cssSelectors ? `${cssSelectors} { display: none !important; }` : '';
+	let sheet = null;
+	if (cssText) {
+		try { sheet = new CSSStyleSheet(); sheet.replaceSync(cssText); } catch (e) { sheet = null; }
+	}
+
+	function injectSheet(root) {
+		if (!cssText) return;
+		try {
+			if (sheet && root.adoptedStyleSheets) {
+				if (!root.adoptedStyleSheets.includes(sheet)) {
+					root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+				}
+				return;
+			}
+		} catch (e) { /* fall through to a <style> node */ }
+		try {
+			const styleEl = document.createElement('style');
+			styleEl.textContent = cssText;
+			(root.head || root).appendChild(styleEl);
+		} catch (e) { /* ignore */ }
+	}
+
+	// #### Separator trimming via JS ############################################
+
 	function isSeparator(item) {
 		return item.classList.contains('separator')
 			|| item.getAttribute('role') === 'separator'
@@ -53,7 +109,7 @@
 		return sel.prefix ? label.startsWith(sel.label) : label === sel.label;
 	}
 
-	function applyHide(container) {
+	function trimSeparators(container) {
 		if (container.matches('.titlebar-container *')) return;
 		// Include standalone separators alongside action-items so the trim and
 		// adjacent-collapse passes can reach them — newer VSCode menus (and some
@@ -71,17 +127,16 @@
 		const hide = new Array(items.length).fill(false);
 		for (let i = 0; i < items.length; i++) {
 			for (const sel of SELECTORS) {
-				if (sel.kind === 'self' && !seps[i] && labelMatches(sel, labels[i])) hide[i] = true;
-				else if (sel.kind === 'sep' && seps[i]) hide[i] = true;
+				if (sel.kind === 'sep' && seps[i]) hide[i] = true;
 				else if (sel.kind === 'sep-after' && seps[i] && i > 0 && !seps[i-1] && labelMatches(sel, labels[i-1])) hide[i] = true;
 				else if (sel.kind === 'sep-before' && seps[i] && i < items.length-1 && !seps[i+1] && labelMatches(sel, labels[i+1])) hide[i] = true;
 			}
 		}
 
 		// "visible after our pass" = not in hide[] AND not already hidden by some
-		// other rule (extension CSS, when-clauses, etc.). Using computed style
-		// here lets trim/collapse see across externally-hidden items so a sep
-		// next to a when-hidden command still gets trimmed.
+		// other rule (our own CSS, extension CSS, when-clauses, etc.). Using
+		// computed style here lets trim/collapse see across the items the CSS
+		// hid, so a separator next to a hidden command still gets trimmed.
 		const isVisible = (i) => {
 			if (hide[i]) return false;
 			const style = getComputedStyle(items[i]);
@@ -108,90 +163,31 @@
 			else break;
 		}
 
+		// Only touch separators here — labelled items are owned by the CSS above.
 		for (let i = 0; i < items.length; i++) {
+			if (!seps[i]) continue;
 			if (hide[i]) items[i].style.setProperty('display', 'none', 'important');
 			else items[i].style.removeProperty('display');
 		}
-
-		// After hiding items the menu content may now fit, but VSCode doesn't
-		// recompute its menu scrollbar (it scrolls via transforms, so the
-		// scrollable element's scrollHeight always equals clientHeight and is
-		// useless here) — leaving a stranded scrollbar when nothing needs
-		// scrolling. Compare the real visible content height against the scroll
-		// viewport and hide/restore the vertical scrollbar to match. Deferred a
-		// frame so the menu's post-hide layout has settled.
-		const scrollable = container.querySelector('.monaco-scrollable-element');
-		const content = scrollable && scrollable.querySelector('.actions-container');
-		const vbar = scrollable && scrollable.querySelector('.scrollbar.vertical');
-		if (scrollable && content && vbar) {
-			requestAnimationFrame(() => {
-				if (!vbar.isConnected) return;
-				if (content.offsetHeight <= scrollable.clientHeight) {
-					vbar.style.setProperty('display', 'none', 'important');
-				} else {
-					vbar.style.removeProperty('display');
-				}
-			});
-		}
 	}
+
+	// #### Wiring ###############################################################
 
 	const MENU_SELECTOR = '.monaco-menu-container';
 
-	// VSCode measures the menu height before our hides run, so a tall menu
-	// near the bottom of the screen gets clamped to viewport top. After we
-	// shrink it, the menu is left stranded far from the cursor. We capture
-	// the cursor coords on contextmenu, then re-anchor the freshly-shrunk
-	// menu next to the cursor (clamping to viewport).
-	let pendingAnchor = null;
-	document.addEventListener('contextmenu', (e) => {
-		pendingAnchor = { x: e.clientX, y: e.clientY, t: Date.now() };
-	}, true);
-	function takeAnchor() {
-		if (!pendingAnchor) return null;
-		if (Date.now() - pendingAnchor.t > 250) { pendingAnchor = null; return null; }
-		const a = pendingAnchor;
-		pendingAnchor = null;
-		return a;
-	}
-
-	function repositionMenu(container, anchor) {
-		if (!anchor) return;
-		const rect = container.getBoundingClientRect();
-		if (!rect.height || !rect.width) return;
-		const vw = window.innerWidth;
-		const vh = window.innerHeight;
-		let left = anchor.x;
-		let top = anchor.y;
-		if (left + rect.width > vw) left = Math.max(0, anchor.x - rect.width);
-		if (top + rect.height > vh) top = Math.max(0, anchor.y - rect.height);
-		container.style.setProperty('left', left + 'px', 'important');
-		container.style.setProperty('top', top + 'px', 'important');
+	function attachMenu(node) {
+		trimSeparators(node);
+		if (!node.__ccmObs) {
+			const o = new MutationObserver(() => trimSeparators(node));
+			o.observe(node, { childList: true, subtree: true });
+			node.__ccmObs = o;
+		}
 	}
 
 	function processNode(node) {
 		if (node.nodeType !== 1) return;
-		if (node.matches?.(MENU_SELECTOR)) {
-			const isNew = !node.__ccmObs;
-			const anchor = isNew ? takeAnchor() : null;
-			applyHide(node);
-			if (isNew) repositionMenu(node, anchor);
-			if (!node.__ccmObs) {
-				const o = new MutationObserver(() => applyHide(node));
-				o.observe(node, { childList: true, subtree: true });
-				node.__ccmObs = o;
-			}
-		}
-		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) {
-			const isNew = !m.__ccmObs;
-			const anchor = isNew ? takeAnchor() : null;
-			applyHide(m);
-			if (isNew) repositionMenu(m, anchor);
-			if (!m.__ccmObs) {
-				const o = new MutationObserver(() => applyHide(m));
-				o.observe(m, { childList: true, subtree: true });
-				m.__ccmObs = o;
-			}
-		}
+		if (node.matches?.(MENU_SELECTOR)) attachMenu(node);
+		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) attachMenu(m);
 	}
 
 	function watch(root) {
@@ -202,12 +198,15 @@
 		}).observe(root, { childList: true, subtree: true });
 	}
 
+	// Menus render inside shadow roots; inject the stylesheet as each is created
+	// (before VSCode populates the menu) and watch it for separator trimming.
 	const origAttachShadow = Element.prototype.attachShadow;
 	Element.prototype.attachShadow = function () {
 		const shadow = origAttachShadow.apply(this, arguments);
-		try { watch(shadow); } catch (e) { /* ignore */ }
+		try { injectSheet(shadow); watch(shadow); } catch (e) { /* ignore */ }
 		return shadow;
 	};
 
+	injectSheet(document);
 	watch(document);
 })();
