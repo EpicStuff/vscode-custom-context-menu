@@ -112,6 +112,27 @@
 			if (hide[i]) items[i].style.setProperty('display', 'none', 'important');
 			else items[i].style.removeProperty('display');
 		}
+
+		// After hiding items the menu content may now fit, but VSCode doesn't
+		// recompute its menu scrollbar (it scrolls via transforms, so the
+		// scrollable element's scrollHeight always equals clientHeight and is
+		// useless here) — leaving a stranded scrollbar when nothing needs
+		// scrolling. Compare the real visible content height against the scroll
+		// viewport and hide/restore the vertical scrollbar to match. Deferred a
+		// frame so the menu's post-hide layout has settled.
+		const scrollable = container.querySelector('.monaco-scrollable-element');
+		const content = scrollable && scrollable.querySelector('.actions-container');
+		const vbar = scrollable && scrollable.querySelector('.scrollbar.vertical');
+		if (scrollable && content && vbar) {
+			requestAnimationFrame(() => {
+				if (!vbar.isConnected) return;
+				if (content.offsetHeight <= scrollable.clientHeight) {
+					vbar.style.setProperty('display', 'none', 'important');
+				} else {
+					vbar.style.removeProperty('display');
+				}
+			});
+		}
 	}
 
 	const MENU_SELECTOR = '.monaco-menu-container';
