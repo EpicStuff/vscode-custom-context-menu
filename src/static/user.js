@@ -1,81 +1,27 @@
 (function () {
-	const RAW_SELECTORS = %selectors%;
-
-	function stripOuterQuotes(s) {
-		const m = s.match(/^"(.*)"$/);
-		return m ? m[1] : s;
-	}
-
-	function parseLabelOnly(s) {
-		s = stripOuterQuotes(s.trim());
-		const carat = s.match(/^\^(.+)$/);
-		if (carat) return { prefix: true, label: stripOuterQuotes(carat[1].trim()) };
-		return { prefix: false, label: s };
-	}
-
-	function parseSelector(raw) {
-		let s = String(raw).trim();
-		if (!s) return null;
-		s = stripOuterQuotes(s);
-		if (s === '_') return { kind: 'sep' };
-
-		let m = s.match(/^"?_"?:\s*has\(\s*\+\s*(.+?)\s*\)$/);
-		if (m) {
-			const inner = parseLabelOnly(m[1]);
-			return inner && { kind: 'sep-before', ...inner };
-		}
-
-		m = s.match(/^(.+?)\s*\+\s*"?_"?$/);
-		if (m) {
-			const inner = parseLabelOnly(m[1]);
-			return inner && { kind: 'sep-after', ...inner };
-		}
-
-		const inner = parseLabelOnly(s);
-		return inner && { kind: 'self', ...inner };
-	}
-
-	const SELECTORS = RAW_SELECTORS.map(parseSelector).filter(Boolean);
+	// Injected by the extension: SELECTORS is the pre-parsed structured list
+	// ({ kind, prefix, label }), CSS is the generated stylesheet that hides
+	// labelled items. The selector grammar and CSS generation live in the
+	// extension's selectors.js — this runtime only consumes their output.
+	const SELECTORS = %selectors%;
+	const CSS = %css%;
 
 	// #### Item hiding via CSS ###################################################
-	// Labelled items are hidden with a stylesheet injected into each menu's shadow
-	// root (and the document), so the rule is in place *before* VSCode builds and
-	// measures the menu. VSCode then sizes and positions the already-shrunk menu
-	// itself — which is why this file no longer needs to clamp a stranded
-	// scrollbar or re-anchor the menu to the cursor. Separator trimming below
-	// stays in JS: whether a separator is leading/trailing/adjacent depends on the
-	// runtime visibility of its neighbours, which CSS can't compute reliably.
+	// The stylesheet is injected into each menu's shadow root (and the document)
+	// so the rule is in place *before* VSCode builds and measures the menu. VSCode
+	// then sizes, scrolls and positions the already-shrunk menu itself — which is
+	// why this runtime no longer clamps a stranded scrollbar or re-anchors the
+	// menu. Separator trimming below stays in JS: whether a separator is
+	// leading/trailing/adjacent depends on the runtime visibility of its
+	// neighbours, which CSS can't compute reliably.
 
-	function cssEscape(s) {
-		return s.replace(/[\\"]/g, '\\$&');
-	}
-
-	// VSCode aria-labels use the "…" ellipsis; users typically type "...". Match
-	// whichever form is missing so either works in the config.
-	function labelVariants(label) {
-		const set = new Set([label]);
-		if (label.includes('...')) set.add(label.replace(/\.\.\./g, '…'));
-		if (label.includes('…')) set.add(label.replace(/…/g, '...'));
-		return [...set];
-	}
-
-	function selfSelectorToCss(sel) {
-		if (sel.kind !== 'self' || !sel.label) return null;
-		const op = sel.prefix ? '^=' : '=';
-		return labelVariants(sel.label)
-			.map(v => `.action-item:has(.action-label[aria-label${op}"${cssEscape(v)}"])`)
-			.join(', ');
-	}
-
-	const cssSelectors = SELECTORS.map(selfSelectorToCss).filter(Boolean).join(',\n');
-	const cssText = cssSelectors ? `${cssSelectors} { display: none !important; }` : '';
 	let sheet = null;
-	if (cssText) {
-		try { sheet = new CSSStyleSheet(); sheet.replaceSync(cssText); } catch (e) { sheet = null; }
+	if (CSS) {
+		try { sheet = new CSSStyleSheet(); sheet.replaceSync(CSS); } catch (e) { sheet = null; }
 	}
 
 	function injectSheet(root) {
-		if (!cssText) return;
+		if (!CSS) return;
 		try {
 			if (sheet && root.adoptedStyleSheets) {
 				if (!root.adoptedStyleSheets.includes(sheet)) {
@@ -86,7 +32,7 @@
 		} catch (e) { /* fall through to a <style> node */ }
 		try {
 			const styleEl = document.createElement('style');
-			styleEl.textContent = cssText;
+			styleEl.textContent = CSS;
 			(root.head || root).appendChild(styleEl);
 		} catch (e) { /* ignore */ }
 	}

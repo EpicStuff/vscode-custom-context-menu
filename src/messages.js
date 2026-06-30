@@ -18,4 +18,9 @@ exports.messages = {
 		"(common on code-server/remote hosts). A command to grant your user write access has been " +
 		"placed in the terminal — review it, run it (enter your password if prompted), then re-run " +
 		"\"Enable Custom Context Menu\".",
+	reEnable: "Re-enable",
+	selectorsChanged:
+		"Custom context menu selectors updated. Re-enable the custom context menu to apply changes.",
+	reapplyAfterUpdate:
+		"VS Code looks like it was updated, which reset the custom context menu. Re-enable it?",
 };
