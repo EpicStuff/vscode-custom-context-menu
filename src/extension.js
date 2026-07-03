@@ -34,7 +34,17 @@ function activate(context) {
 	async function buildInjectedScript() {
 		const templatePath = vscode.Uri.joinPath(context.extensionUri, "src", "static", "user.js").fsPath;
 		const template = await fs.promises.readFile(templatePath, "utf8");
-		const parsed = parseSelectors(config.get("selectors"));
+		// Re-read the configuration here rather than reusing the `config` snapshot
+		// captured at activation: getConfiguration() returns a frozen snapshot, so
+		// the activation-time copy still holds the selectors as they were when the
+		// window last loaded. Reusing it would bake stale selectors into the patch,
+		// which is why a settings change previously took two Enable+reload cycles
+		// (and made the Re-enable prompt appear to do nothing) — the first Enable
+		// patched the old values, and only the reload-refreshed snapshot on the
+		// second Enable picked up the change.
+		const parsed = parseSelectors(
+			vscode.workspace.getConfiguration("custom-contextmenu").get("selectors")
+		);
 		const css = selectorsToCss(parsed);
 		const body = template
 			.replace("%selectors%", () => JSON.stringify(parsed))

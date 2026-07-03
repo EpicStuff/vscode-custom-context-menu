@@ -6,6 +6,11 @@
 	const SELECTORS = %selectors%;
 	const CSS = %css%;
 
+	// Diagnostic marker: proves to the e2e (and manual debugging) that the injected
+	// script actually executed in this workbench and what it was handed. Lets a test
+	// tell "script never ran" (CSP/serving problem) apart from "ran but hid nothing".
+	try { window.__ccm = { ran: true, selectors: SELECTORS.length, cssLen: (CSS || '').length }; } catch (e) { /* no window */ }
+
 	// #### Item hiding via CSS ###################################################
 	// The stylesheet is injected into each menu's shadow root (and the document)
 	// so the rule is in place *before* VSCode builds and measures the menu. VSCode
