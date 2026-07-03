@@ -70,6 +70,34 @@ test('createPatcher: backup, apply and remove round-trip on disk', async () => {
 	fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('createPatcher: removePatch recovers when the backup is missing but the file is patched', async () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccm-test-'));
+	const htmlFile = path.join(dir, 'workbench.html');
+	const backupFile = htmlFile + '.orig';
+	// Patched workbench, but the .orig backup was lost.
+	fs.writeFileSync(htmlFile, buildPatchedHtml(PRISTINE, '<script>x</script>'));
+	const patcher = createPatcher({ htmlFile, backupFile, workbenchDir: dir });
+
+	await patcher.removePatch();
+	assert.equal(fs.readFileSync(htmlFile, 'utf-8'), PRISTINE, 'patch stripped in place');
+	assert.equal(isPatched(fs.readFileSync(htmlFile, 'utf-8')), false);
+
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('createPatcher: removePatch is a no-op on an unpatched file with no backup', async () => {
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccm-test-'));
+	const htmlFile = path.join(dir, 'workbench.html');
+	const backupFile = htmlFile + '.orig';
+	fs.writeFileSync(htmlFile, PRISTINE);
+	const patcher = createPatcher({ htmlFile, backupFile, workbenchDir: dir });
+
+	await patcher.removePatch();
+	assert.equal(fs.readFileSync(htmlFile, 'utf-8'), PRISTINE, 'clean file left untouched');
+
+	fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('createPatcher: ensureBackup reconstructs a clean backup from an already-patched file', async () => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccm-test-'));
 	const htmlFile = path.join(dir, 'workbench.html');

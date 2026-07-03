@@ -55,6 +55,48 @@
 		return sel.prefix ? label.startsWith(sel.label) : label === sel.label;
 	}
 
+	// Pure decision core: given each item's separator flag, label, and whether it
+	// is already hidden by CSS (ours, an extension's, a when-clause), return the
+	// hide[] array for separators. Kept free of the DOM so it can be unit-tested
+	// directly — trimSeparators just gathers these inputs and applies the result.
+	function computeSeparatorHides(seps, labels, cssHidden, selectors) {
+		const n = seps.length;
+		const hide = new Array(n).fill(false);
+		for (let i = 0; i < n; i++) {
+			for (const sel of selectors) {
+				if (sel.kind === 'sep' && seps[i]) hide[i] = true;
+				else if (sel.kind === 'sep-after' && seps[i] && i > 0 && !seps[i-1] && labelMatches(sel, labels[i-1])) hide[i] = true;
+				else if (sel.kind === 'sep-before' && seps[i] && i < n-1 && !seps[i+1] && labelMatches(sel, labels[i+1])) hide[i] = true;
+			}
+		}
+
+		// "visible after our pass" = not in hide[] AND not already hidden by CSS.
+		// This lets trim/collapse see across the items the CSS hid, so a separator
+		// next to a hidden command still gets trimmed.
+		const isVisible = (i) => !hide[i] && !cssHidden[i];
+
+		// Trim leading separators and collapse adjacent ones in one forward pass.
+		let leadingDone = false;
+		let lastVisibleWasSep = false;
+		for (let i = 0; i < n; i++) {
+			if (!isVisible(i)) continue;
+			if (seps[i]) {
+				if (!leadingDone || lastVisibleWasSep) hide[i] = true;
+				else lastVisibleWasSep = true;
+			} else {
+				leadingDone = true;
+				lastVisibleWasSep = false;
+			}
+		}
+		// Trim trailing separators.
+		for (let i = n - 1; i >= 0; i--) {
+			if (!isVisible(i)) continue;
+			if (seps[i]) hide[i] = true;
+			else break;
+		}
+		return hide;
+	}
+
 	function trimSeparators(container) {
 		if (container.matches('.titlebar-container *')) return;
 		// Include standalone separators alongside action-items so the trim and
@@ -69,45 +111,11 @@
 
 		const labels = items.map(labelOf);
 		const seps = items.map(isSeparator);
-
-		const hide = new Array(items.length).fill(false);
-		for (let i = 0; i < items.length; i++) {
-			for (const sel of SELECTORS) {
-				if (sel.kind === 'sep' && seps[i]) hide[i] = true;
-				else if (sel.kind === 'sep-after' && seps[i] && i > 0 && !seps[i-1] && labelMatches(sel, labels[i-1])) hide[i] = true;
-				else if (sel.kind === 'sep-before' && seps[i] && i < items.length-1 && !seps[i+1] && labelMatches(sel, labels[i+1])) hide[i] = true;
-			}
-		}
-
-		// "visible after our pass" = not in hide[] AND not already hidden by some
-		// other rule (our own CSS, extension CSS, when-clauses, etc.). Using
-		// computed style here lets trim/collapse see across the items the CSS
-		// hid, so a separator next to a hidden command still gets trimmed.
-		const isVisible = (i) => {
-			if (hide[i]) return false;
-			const style = getComputedStyle(items[i]);
-			return style.display !== 'none' && style.visibility !== 'hidden';
-		};
-
-		// Trim leading separators and collapse adjacent ones in one forward pass.
-		let leadingDone = false;
-		let lastVisibleWasSep = false;
-		for (let i = 0; i < items.length; i++) {
-			if (!isVisible(i)) continue;
-			if (seps[i]) {
-				if (!leadingDone || lastVisibleWasSep) hide[i] = true;
-				else lastVisibleWasSep = true;
-			} else {
-				leadingDone = true;
-				lastVisibleWasSep = false;
-			}
-		}
-		// Trim trailing separators.
-		for (let i = items.length - 1; i >= 0; i--) {
-			if (!isVisible(i)) continue;
-			if (seps[i]) hide[i] = true;
-			else break;
-		}
+		const cssHidden = items.map((el) => {
+			const style = getComputedStyle(el);
+			return style.display === 'none' || style.visibility === 'hidden';
+		});
+		const hide = computeSeparatorHides(seps, labels, cssHidden, SELECTORS);
 
 		// Only touch separators here — labelled items are owned by the CSS above.
 		for (let i = 0; i < items.length; i++) {
@@ -144,15 +152,22 @@
 		}).observe(root, { childList: true, subtree: true });
 	}
 
-	// Menus render inside shadow roots; inject the stylesheet as each is created
-	// (before VSCode populates the menu) and watch it for separator trimming.
-	const origAttachShadow = Element.prototype.attachShadow;
-	Element.prototype.attachShadow = function () {
-		const shadow = origAttachShadow.apply(this, arguments);
-		try { injectSheet(shadow); watch(shadow); } catch (e) { /* ignore */ }
-		return shadow;
-	};
+	if (typeof document !== 'undefined') {
+		// Menus render inside shadow roots; inject the stylesheet as each is created
+		// (before VSCode populates the menu) and watch it for separator trimming.
+		const origAttachShadow = Element.prototype.attachShadow;
+		Element.prototype.attachShadow = function () {
+			const shadow = origAttachShadow.apply(this, arguments);
+			try { injectSheet(shadow); watch(shadow); } catch (e) { /* ignore */ }
+			return shadow;
+		};
 
-	injectSheet(document);
-	watch(document);
+		injectSheet(document);
+		watch(document);
+	} else if (typeof module !== 'undefined') {
+		// No DOM: running under Node for unit tests. Expose the pure decision core.
+		// The injected browser script always has `document`, so this never fires
+		// in the workbench.
+		module.exports = { computeSeparatorHides };
+	}
 })();

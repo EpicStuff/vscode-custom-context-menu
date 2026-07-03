@@ -112,11 +112,22 @@ function createPatcher({ htmlFile, backupFile, workbenchDir }) {
 	}
 
 	async function removePatch() {
-		if (!fs.existsSync(backupFile)) return;
-		// One atomic rename consumes the backup and replaces workbench.html in a
-		// single syscall — when this needs pkexec, it's a single auth prompt
-		// instead of separate copy + unlink prompts.
-		await safeRename(backupFile, htmlFile);
+		if (fs.existsSync(backupFile)) {
+			// One atomic rename consumes the backup and replaces workbench.html in a
+			// single syscall — when this needs pkexec, it's a single auth prompt
+			// instead of separate copy + unlink prompts.
+			await safeRename(backupFile, htmlFile);
+			return;
+		}
+		// No backup to restore from. If workbench.html still carries our markers
+		// the backup was lost (deleted, or a VSCode update shuffled the dir) —
+		// recover by stripping the patch in place, so disable never reports success
+		// while leaving a patched workbench behind. If it isn't patched there's
+		// nothing to undo.
+		const html = await fs.promises.readFile(htmlFile, 'utf-8');
+		if (isPatched(html)) {
+			await safeWriteFile(htmlFile, clearExistingPatches(html));
+		}
 	}
 
 	return { migrateLegacyBackups, ensureBackup, applyPatch, removePatch };

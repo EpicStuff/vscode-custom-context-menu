@@ -5,6 +5,7 @@ const msg = require("./messages").messages;
 const { resolveWorkbenchHtmlFile } = require("./workbench");
 const { parseSelectors, selectorsToCss } = require("./selectors");
 const patchlib = require("./patch");
+const elevation = require("./elevation");
 
 function activate(context) {
 	const config = vscode.workspace.getConfiguration("custom-contextmenu");
@@ -82,7 +83,15 @@ function activate(context) {
 			vscode.window.showInformationMessage(msg.terminalPermissionFix);
 			return;
 		}
-		vscode.window.showInformationMessage(msg.admin);
+		// Only genuine permission failures get the "run as admin" advice. Anything
+		// else — a missing/unreadable user.js template, a bad workbench path, an
+		// unexpected patch failure — surfaces its real message so it isn't
+		// mislabelled as a permission problem the user can't actually fix that way.
+		if (elevation.isPermissionError(e)) {
+			vscode.window.showInformationMessage(msg.admin);
+			return;
+		}
+		vscode.window.showErrorMessage(msg.somethingWrong + (e && e.message ? e.message : String(e)));
 	}
 
 	function reloadWindow() {
@@ -120,7 +129,11 @@ function activate(context) {
 		vscode.commands.registerCommand("custom-contextmenu.installCustomContextmenu", cmdInstall),
 		vscode.commands.registerCommand("custom-contextmenu.uninstallCustomContextmenu", cmdUninstall),
 		vscode.workspace.onDidChangeConfiguration((event) => {
-			if (event.affectsConfiguration("custom-contextmenu.selectors")) {
+			// Only nag about re-enabling when the patch is actually in place —
+			// otherwise editing selectors before ever enabling triggers an
+			// irrelevant prompt.
+			if (event.affectsConfiguration("custom-contextmenu.selectors")
+				&& context.globalState.get("enabled")) {
 				promptReEnable(msg.selectorsChanged);
 			}
 		})

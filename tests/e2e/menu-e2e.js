@@ -151,8 +151,8 @@ function resolveVsix() {
 		throw new Error(`CCM_VSIX points at ${env}, which does not exist.`);
 	}
 	const out = path.join(os.tmpdir(), `ccm-e2e-${process.pid}.vsix`);
-	// `--no-dependencies` skips the destructive `vscode:prepublish` (which would
-	// rimraf node_modules); `--allow-missing-repository` keeps vsce non-fatal.
+	// `--no-dependencies` packages just the sources (the extension ships no
+	// runtime deps); `--allow-missing-repository` keeps vsce non-fatal.
 	const r = spawnSync('npx',
 		['--yes', '@vscode/vsce', 'package', '--no-dependencies', '--allow-missing-repository', '-o', out],
 		{ cwd: repo, encoding: 'utf8' });
