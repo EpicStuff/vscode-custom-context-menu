@@ -46,7 +46,11 @@ const net = require('net');
 const http = require('http');
 const { spawn, spawnSync } = require('child_process');
 
-const SELECTORS = ['"Copy"', '"Cut"', '_'];
+// "Peek Definition" is a leaf INSIDE the editor menu's "Peek" submenu. It's here
+// so the code-server flow can prove the submenu-leak regression: hiding a submenu
+// leaf must not hide its parent ("Peek") when the submenu opens on hover. The
+// desktop OCR flow is unaffected — that leaf lives in a submenu OCR never sees.
+const SELECTORS = ['"Copy"', '"Cut"', '_', '"Peek Definition"'];
 const PATCH_MARKER = '<!-- !! VSCODE-CUSTOM-CSS-START !! -->';
 const repo = path.resolve(__dirname, '..', '..');
 
@@ -377,6 +381,68 @@ function inspectMenuInPage(click) {
 	};
 }
 
+// After a submenu parent is hovered open, report whether the parent item and a
+// named submenu leaf are visible. Identifies items by their OWN row label (the
+// direct-child `.action-label`), never a descendant, so "Peek" is the parent and
+// "Peek Definition" the leaf even though the leaf nests inside the parent's <li>.
+function inspectSubmenu(labels) {
+	function* allRoots(root) {
+		yield root;
+		for (const el of root.querySelectorAll('*')) if (el.shadowRoot) yield* allRoots(el.shadowRoot);
+	}
+	// Only look inside menu containers that are actually on screen. VSCode leaves
+	// stale, hidden `.monaco-menu-container`s from earlier opens in the DOM; a
+	// phantom "Peek" in one of those reads as display:none and would masquerade as
+	// the bug. Mirror inspectMenuInPage: restrict to shown, sized containers.
+	const isShown = (el) => {
+		const st = getComputedStyle(el);
+		if (st.display === 'none' || st.visibility === 'hidden') return false;
+		const rc = el.getBoundingClientRect();
+		return rc.width > 0 && rc.height > 0;
+	};
+	const items = [];
+	for (const r of allRoots(document)) {
+		if (!r.querySelectorAll) continue;
+		for (const c of r.querySelectorAll('.monaco-menu-container')) {
+			if (!isShown(c)) continue;
+			for (const it of c.querySelectorAll('.action-item')) items.push(it);
+		}
+	}
+	const ownLabel = (it) => {
+		const l = it.querySelector(':scope > .action-menu-item > .action-label[aria-label], :scope > .action-label[aria-label]');
+		return l ? l.getAttribute('aria-label') : null;
+	};
+	const disp = (el) => el ? getComputedStyle(el).display : null;
+	const parent = items.find(it => ownLabel(it) === labels.parent);
+	const leaf = items.find(it => ownLabel(it) === labels.leaf);
+	return {
+		parentFound: !!parent,
+		parentDisplay: disp(parent),
+		parentVisible: parent ? disp(parent) !== 'none' : null,
+		leafFound: !!leaf,
+		leafDisplay: disp(leaf),
+		leafHidden: leaf ? disp(leaf) === 'none' : null,
+	};
+}
+
+// Open the editor menu, hover a submenu parent so its submenu populates, and
+// inspect both the parent and the named leaf. Regression harness for the leak
+// where an unscoped `:has()` hid a submenu parent whenever a leaf matched.
+async function webCheckSubmenu(page, parent, leaf) {
+	const box = await page.locator('.monaco-editor .view-lines').first().boundingBox();
+	await page.mouse.click(Math.round(box.x + 60), Math.round(box.y + 10), { button: 'right' });
+	await page.waitForTimeout(700);
+	// Hover the VISIBLE parent, matched by its own row label (not a descendant, and
+	// not a stale hidden menu) so the submenu actually populates.
+	await page.locator(`.monaco-menu-container:visible .action-item:has(> .action-menu-item > .action-label[aria-label="${parent}"])`).first()
+		.hover({ timeout: 5000 }).catch(() => {});
+	await page.waitForTimeout(1800);
+	const res = await page.evaluate(inspectSubmenu, { parent, leaf });
+	await page.keyboard.press('Escape');
+	await page.waitForTimeout(500);
+	return res;
+}
+
 async function webLoadWorkbench(page, url) {
 	await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 	await page.waitForSelector('.monaco-workbench', { timeout: 90000 });
@@ -500,6 +566,21 @@ async function runCodeServerFlow(t, bin, deps) {
 		assert.ok(after2.found, 'context menu should re-open');
 		assert.equal(after2.sepVisible, 0,
 			`separators must stay hidden on a second open; got sepVisible=${after2.sepVisible}`);
+
+		// Submenu-leak regression: a parent item with a submenu must NOT vanish just
+		// because one of its submenu leaves matches a selector. "Peek Definition" is
+		// configured (see SELECTORS); hovering "Peek" opens its submenu — the parent
+		// "Peek" must stay visible while the "Peek Definition" leaf is hidden. With
+		// the old unscoped `:has(.action-label[…])` the whole "Peek" item disappeared
+		// on hover (the reported "File History / Open Changes vanish on hover" bug).
+		const sub = await webCheckSubmenu(page, 'Peek', 'Peek Definition');
+		t.diagnostic(`[code-server] submenu regression: ` + JSON.stringify(sub));
+		assert.ok(sub.parentFound, 'the "Peek" submenu parent should exist in the editor menu');
+		assert.ok(sub.leafFound, 'the "Peek Definition" leaf should exist once the Peek submenu is open');
+		assert.ok(sub.parentVisible,
+			`a submenu parent must stay visible when a leaf matches a selector; "Peek" had display=${sub.parentDisplay}`);
+		assert.ok(sub.leafHidden,
+			`the configured submenu leaf "Peek Definition" should be hidden; got display=${sub.leafDisplay}`);
 
 		// Anchored at the cursor (not drifted by stale pre-hide layout).
 		assert.ok(Math.abs(after.anchorDx) <= 24 && Math.abs(after.anchorDy) <= 24,

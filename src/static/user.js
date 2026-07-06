@@ -45,9 +45,16 @@
 	// #### Separator trimming via JS ############################################
 
 	function isSeparator(item) {
-		return item.classList.contains('separator')
-			|| item.getAttribute('role') === 'separator'
-			|| !!item.querySelector('.action-label.separator, .codicon.separator');
+		if (item.classList.contains('separator') || item.getAttribute('role') === 'separator') return true;
+		// A separator can also be an .action-item wrapping a .separator label/codicon.
+		// Match ONLY the item's own row: VSCode nests a submenu inside its parent
+		// <li>, and that submenu has its own separators — an unbounded querySelector
+		// would then see a submenu parent (e.g. "Peek", "File History", "Open
+		// Changes") as a separator, so the "_" selector wrongly hid the whole parent
+		// the moment its submenu built on hover. `closest('.action-item') === item`
+		// keeps a nested submenu's separator from misclassifying its parent.
+		const marker = item.querySelector('.action-label.separator, .codicon.separator');
+		return !!marker && marker.closest('.action-item') === item;
 	}
 
 	function labelOf(item) {

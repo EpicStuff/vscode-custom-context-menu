@@ -46,8 +46,12 @@ test('parseSelectors tolerates non-array input', () => {
 
 test('selectorsToCss emits :has rules for self/prefix only', () => {
 	const css = selectorsToCss(parseSelectors(['Copy', '^Go to', '_', 'Share + _']));
-	assert.match(css, /\.action-item:has\(\.action-label\[aria-label="Copy"\]\)/);
-	assert.match(css, /\.action-item:has\(\.action-label\[aria-label\^="Go to"\]\)/);
+	// The label is scoped to the item's own row (direct-child), not any descendant,
+	// so a matching submenu leaf can't drag its whole parent item into display:none.
+	assert.match(css, /\.action-item:has\(> \.action-menu-item > \.action-label\[aria-label="Copy"\], > \.action-label\[aria-label="Copy"\]\)/);
+	assert.match(css, /\.action-item:has\(> \.action-menu-item > \.action-label\[aria-label\^="Go to"\], > \.action-label\[aria-label\^="Go to"\]\)/);
+	// The old unscoped descendant form must be gone — it leaked to submenu parents.
+	assert.doesNotMatch(css, /:has\(\.action-label\[aria-label="Copy"\]\)/);
 	assert.ok(css.endsWith('{ display: none !important; }'));
 	// separator selectors are handled in JS, never in CSS
 	assert.doesNotMatch(css, /Share/);

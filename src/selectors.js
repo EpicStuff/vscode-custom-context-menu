@@ -74,8 +74,19 @@ function labelVariants(label) {
 function selectorsToCss(parsed) {
 	const rules = parsed
 		.filter(sel => sel.kind === 'self' && sel.label)
-		.flatMap(sel => labelVariants(sel.label).map(v =>
-			`.action-item:has(.action-label[aria-label${sel.prefix ? '^=' : '='}"${cssEscape(v)}"])`));
+		.flatMap(sel => labelVariants(sel.label).map(v => {
+			// Match the item's OWN label only. VSCode nests a submenu's items inside
+			// their parent submenu `<li class="action-item">` (as a `.monaco-submenu`
+			// after the row anchor), so an unscoped `:has(.action-label[…])` also
+			// matches a parent whenever any of its submenu leaves matches — hiding the
+			// whole parent (e.g. "Peek", "File History", "Open Changes") the moment its
+			// submenu populates on hover. Constrain the label to a direct row of the
+			// item: `> .action-menu-item > .action-label` (context menus) or
+			// `> .action-label` (action bars). Both are shallow, so a deeper
+			// submenu-leaf label never satisfies the parent's `:has()`.
+			const attr = `.action-label[aria-label${sel.prefix ? '^=' : '='}"${cssEscape(v)}"]`;
+			return `.action-item:has(> .action-menu-item > ${attr}, > ${attr})`;
+		}));
 	return rules.length ? `${rules.join(',\n')} { display: none !important; }` : '';
 }
 
