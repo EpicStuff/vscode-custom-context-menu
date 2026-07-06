@@ -82,10 +82,22 @@
 			}
 		}
 
-		// "visible after our pass" = not in hide[] AND not already hidden by CSS.
-		// This lets trim/collapse see across the items the CSS hid, so a separator
-		// next to a hidden command still gets trimmed.
-		const isVisible = (i) => !hide[i] && !cssHidden[i];
+		// A command our own label CSS targets counts as hidden here even when that
+		// stylesheet hasn't painted yet. On the first menu open the JS collapse
+		// pass can run before the injected sheet applies, so getComputedStyle (the
+		// cssHidden input) still reports the doomed command as visible — its
+		// flanking separators then read as non-adjacent and stay stacked (fixed
+		// only on the next open, once the sheet is warm). We know our own `self`
+		// selectors up front, so decide from them directly instead of waiting on
+		// paint; cssHidden still covers foreign hides (other extensions,
+		// when-clauses).
+		const labelHidden = (i) => !seps[i] && labels[i] &&
+			selectors.some(sel => sel.kind === 'self' && sel.label && labelMatches(sel, labels[i]));
+
+		// "visible after our pass" = not in hide[] AND not hidden by our label CSS
+		// AND not already hidden by foreign CSS. This lets trim/collapse see across
+		// the items we hid, so a separator next to a hidden command still gets trimmed.
+		const isVisible = (i) => !hide[i] && !cssHidden[i] && !labelHidden(i);
 
 		// Trim leading separators and collapse adjacent ones in one forward pass.
 		let leadingDone = false;

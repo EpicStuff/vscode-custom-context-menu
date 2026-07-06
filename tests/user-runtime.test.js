@@ -96,6 +96,27 @@ test('a command hidden by CSS lets its now-stranded separator be trimmed', () =>
 		[false, true, false]);
 });
 
+test('a self-selector command collapses its separators before the sheet paints', () => {
+	// First-open race: our label CSS will hide B, but on the very first menu the
+	// injected stylesheet may not have painted yet, so getComputedStyle reports B
+	// visible (cssHidden:false everywhere). The collapse must still fold the two
+	// separators flanking B into one from the self selector alone — otherwise the
+	// menu shows stacked separators until the next open warms the sheet.
+	assert.deepEqual(
+		hidesFor(
+			[{ label: 'A' }, SEP, { label: 'B' }, SEP, { label: 'C' }],
+			[{ kind: 'self', prefix: false, label: 'B' }]),
+		[false, false, false, true, false]);
+});
+
+test('a self prefix selector also collapses before paint', () => {
+	assert.deepEqual(
+		hidesFor(
+			[{ label: 'A' }, SEP, { label: 'Go to Definition' }, SEP, { label: 'C' }],
+			[{ kind: 'self', prefix: true, label: 'Go to' }]),
+		[false, false, false, true, false]);
+});
+
 test('empty menu yields no hides', () => {
 	assert.deepEqual(hidesFor([]), []);
 });
