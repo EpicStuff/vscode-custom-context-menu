@@ -15,9 +15,9 @@ Remove any items from VSCode's context menu (right click menu)
 ## Usage
 
 &emsp;1\. install this extension in VSCode  
-&emsp;1.5. optionaly, manually set `custom-contextmenu.workbenchPath` by locating your VS Code installation (e.g., right-click the VS Code shortcut and choose "Open file location"), searching for `workbench.html`/`workbench.esm.html`, then right-clicking the file and choosing "Copy as path"; set that path and re-run `Enable Custom Context Menu`  
+&emsp;1.5. optionally, manually set `custom-contextmenu.workbenchPath` by locating your VS Code installation (e.g., right-click the VS Code shortcut and choose "Open file location"), searching for `workbench.html`/`workbench.esm.html`, then right-clicking the file and choosing "Copy as path"; set that path and re-run `Enable Custom Context Menu`  
 &emsp;2. configure `custom-contextmenu.selectors`, see [Selectors configuration](#selectors-configuration)  
-&emsp;3. open Command Pallete with `F1` or `ctrl+shift+p`  
+&emsp;3. open the Command Palette with `F1` or `ctrl+shift+p`  
 &emsp;4. select `Enable Custom Context Menu`  
 
 ### Selectors configuration

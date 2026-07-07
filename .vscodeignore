@@ -1,3 +1,6 @@
 .vscode/
 .github/
 .prettierrc.yaml
+tests/**
+**/*.test.js
+*.vsix

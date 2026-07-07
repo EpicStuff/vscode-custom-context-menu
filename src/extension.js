@@ -2,7 +2,10 @@ const vscode = require("vscode");
 const fs = require("fs");
 const path = require("path");
 const msg = require("./messages").messages;
-const uuid = require("uuid");
+const { resolveWorkbenchHtmlFile } = require("./workbench");
+const { parseSelectors, selectorsToCss } = require("./selectors");
+const patchlib = require("./patch");
+const elevation = require("./elevation");
 
 function activate(context) {
 	const config = vscode.workspace.getConfiguration("custom-contextmenu");
@@ -20,293 +23,140 @@ function activate(context) {
 		return;
 	}
 	const workbenchDir = path.dirname(htmlFile);
-	const BackupFilePath = uuid => path.join(workbenchDir, `workbench.${uuid}.bak-custom-css`);
+	const backupFile = htmlFile + ".orig";
+	const patcher = patchlib.createPatcher({ htmlFile, backupFile, workbenchDir });
 
-	function resolveWorkbenchHtmlFile(appRoot, workbenchPath) {
-		const baseCandidates = appRoot
-			? [
-					path.join(appRoot, "out", "vs", "code"),
-					path.join(appRoot, "out", "vs", "workbench"),
-					path.join(appRoot, "vs", "code"),
-					path.join(appRoot, "vs", "workbench"),
-			]
-			: [];
-
-		const htmlCandidates = [
-			"workbench.html",
-			"workbench.esm.html",
-			path.join("electron-browser", "workbench", "workbench.html"),
-			path.join("electron-browser", "workbench", "workbench.esm.html"),
-			path.join("electron-sandbox", "workbench", "workbench.html"),
-			path.join("electron-sandbox", "workbench", "workbench.esm.html"),
-		];
-
-		const resolveCandidate = basePath => {
-			for (const candidate of htmlCandidates) {
-				const candidatePath = path.join(basePath, candidate);
-				if (fs.existsSync(candidatePath)) {
-					return candidatePath;
-				}
-			}
-			return null;
-		};
-
-		if (workbenchPath) {
-			const resolvedPath = path.isAbsolute(workbenchPath)
-				? workbenchPath
-				: path.resolve(workbenchPath);
-			if (fs.existsSync(resolvedPath)) {
-				const stats = fs.statSync(resolvedPath);
-				if (stats.isFile()) {
-					return resolvedPath;
-				}
-				if (stats.isDirectory()) {
-					const fromDirectory = resolveCandidate(resolvedPath);
-					if (fromDirectory) {
-						return fromDirectory;
-					}
-				}
-			}
-		}
-
-		if (!appRoot) {
-			return null;
-		}
-
-		for (const base of baseCandidates) {
-			const resolved = resolveCandidate(base);
-			if (resolved) {
-				return resolved;
-			}
-		}
-		return null;
+	// Read user.js, bake in the parsed selectors and generated CSS, wrap in a
+	// <script>. The selectors are injected pre-parsed (structured) for the menu
+	// runtime's separator pass; the CSS hides labelled items before VSCode
+	// measures the menu. Function replacements avoid `$` in the JSON/CSS being
+	// treated as a replacement pattern.
+	async function buildInjectedScript() {
+		const templatePath = vscode.Uri.joinPath(context.extensionUri, "src", "static", "user.js").fsPath;
+		const template = await fs.promises.readFile(templatePath, "utf8");
+		// Re-read the configuration here rather than reusing the `config` snapshot
+		// captured at activation: getConfiguration() returns a frozen snapshot, so
+		// the activation-time copy still holds the selectors as they were when the
+		// window last loaded. Reusing it would bake stale selectors into the patch,
+		// which is why a settings change previously took two Enable+reload cycles
+		// (and made the Re-enable prompt appear to do nothing) — the first Enable
+		// patched the old values, and only the reload-refreshed snapshot on the
+		// second Enable picked up the change.
+		const parsed = parseSelectors(
+			vscode.workspace.getConfiguration("custom-contextmenu").get("selectors")
+		);
+		const css = selectorsToCss(parsed);
+		const body = template
+			.replace("%selectors%", () => JSON.stringify(parsed))
+			.replace("%css%", () => JSON.stringify(css));
+		return `<script>${body}</script>`;
 	}
 
-	// #### main commands ######################################################
-
 	async function cmdInstall() {
-		const uuidSession = uuid.v4();
-		console.log("context menu", "enable")
-		await createBackup(uuidSession);
-		await performPatch(uuidSession);
-		enabledRestart();
+		try {
+			patcher.migrateLegacyBackups();
+			await patcher.ensureBackup();
+			await patcher.applyPatch(await buildInjectedScript());
+			await context.globalState.update("enabled", true);
+			enabledRestart();
+		} catch (e) {
+			handleWriteError(e);
+		}
 	}
 
 	async function cmdUninstall() {
-		await uninstallImpl();
-		disabledRestart();
-	}
-
-	async function uninstallImpl() {
-		const backupUuid = await getBackupUuid(htmlFile);
-		if (!backupUuid) return;
-		const backupPath = BackupFilePath(backupUuid);
-		await restoreBackup(backupPath);
-		await deleteBackupFiles();
-	}
-
-	// #### Backup ################################################################
-
-	async function getBackupUuid(htmlFilePath) {
 		try {
-			const htmlContent = await fs.promises.readFile(htmlFilePath, "utf-8");
-			const m = htmlContent.match(
-				/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ([0-9a-fA-F-]+) !! -->/
-			);
-			if (!m) return null;
-			else return m[1];
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.somethingWrong + e);
-			throw e;
-		}
-	}
-
-	async function createBackup(uuidSession) {
-		try {
-			let html = await fs.promises.readFile(htmlFile, "utf-8");
-			html = clearExistingPatches(html);
-			await fs.promises.writeFile(BackupFilePath(uuidSession), html, "utf-8");
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
-		}
-	}
-
-	async function restoreBackup(backupFilePath) {
-		try {
-			if (fs.existsSync(backupFilePath)) {
-				await fs.promises.unlink(htmlFile);
-				await fs.promises.copyFile(backupFilePath, htmlFile);
-			}
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
-			throw e;
-		}
-	}
-
-	async function deleteBackupFiles() {
-		const htmlDir = path.dirname(htmlFile);
-		const htmlDirItems = await fs.promises.readdir(htmlDir);
-		for (const item of htmlDirItems) {
-			if (item.endsWith(".bak-custom-css")) {
-				await fs.promises.unlink(path.join(htmlDir, item));
-			}
-		}
-	}
-
-	// #### Patching ##############################################################
-
-	async function performPatch(uuidSession) {
-		let html = await fs.promises.readFile(htmlFile, "utf-8");
-		html = clearExistingPatches(html);
-
-		const injectHTML = await patchScript();
-		html = removeCspMetaTag(html);
-
-		html = html.replace(
-			/(<\/html>)/,
-			`<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID ${uuidSession} !! -->\n` +
-				"<!-- !! VSCODE-CUSTOM-CSS-START !! -->\n" +
-				injectHTML +
-				"<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n</html>"
-		);
-		try {
-			await fs.promises.writeFile(htmlFile, html, "utf-8");
-		} catch (e) {
-			vscode.window.showInformationMessage(msg.admin);
+			patcher.migrateLegacyBackups();
+			await patcher.removePatch();
+			await context.globalState.update("enabled", false);
 			disabledRestart();
-			return
+		} catch (e) {
+			handleWriteError(e);
 		}
-	}
-	function clearExistingPatches(html) {
-		html = html.replace(
-			/<!-- !! VSCODE-CUSTOM-CSS-START !! -->[\s\S]*?<!-- !! VSCODE-CUSTOM-CSS-END !! -->\n*/,
-			""
-		);
-		html = html.replace(/<!-- !! VSCODE-CUSTOM-CSS-SESSION-ID [\w-]+ !! -->\n*/g, "");
-		return html;
 	}
 
-	function removeCspMetaTag(html) {
-		return html.replace(
-			/<meta\b[^>]*http-equiv=(?:"|')Content-Security-Policy(?:"|')[^>]*>/gi,
-			""
-		);
-	}
-
-	async function patchScript() {
-		const fileUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'static', 'user.js');
-		let fileContent
-		try {
-			fileContent = await fs.promises.readFile(fileUri.fsPath, 'utf8');
-		} catch (error) {
-			vscode.window.showErrorMessage(`Error reading file: ${error.message}`);
+	// A privileged write failed. If it was a permission problem the elevation
+	// path couldn't resolve (e.g. headless code-server with no polkit agent for
+	// pkexec), fall back to granting the current user write access via a POSIX
+	// ACL — scoped to that one user, unlike a chmod that opens the files to
+	// everyone. The command is placed in a terminal for the user to review and
+	// run with their sudo password; they then re-run Enable.
+	function handleWriteError(e) {
+		if (e && e.needsPermissionFix) {
+			const q = s => `'${String(s).replace(/'/g, "'\\''")}'`;
+			const terminal = vscode.window.createTerminal("Custom Context Menu");
+			terminal.show();
+			terminal.sendText(
+				`sudo setfacl -m u:$(whoami):rwX ${q(workbenchDir)} ${q(htmlFile)}`,
+				false
+			);
+			vscode.window.showInformationMessage(msg.terminalPermissionFix);
+			return;
 		}
-		const config = vscode.workspace.getConfiguration('custom-contextmenu');
-		const selectors = config.get('selectors');
-		const normalizedSelectors = Array.isArray(selectors) ? selectors : [];
-		const formattedSelectors = normalizedSelectors
-			.filter((selector) => typeof selector === 'string')
-			.map((selector) => formatSelector(selector));
-		fileContent = fileContent.replace(
-			'%selectors%',
-			JSON.stringify(formattedSelectors)
-		);
-		return `<script>${fileContent}</script>`;
-	}
-
-	function formatSelector(selector) {
-		const trimmed = selector.trim();
-		if (!trimmed) {
-			return trimmed;
+		// Only genuine permission failures get the "run as admin" advice. Anything
+		// else — a missing/unreadable user.js template, a bad workbench path, an
+		// unexpected patch failure — surfaces its real message so it isn't
+		// mislabelled as a permission problem the user can't actually fix that way.
+		if (elevation.isPermissionError(e)) {
+			vscode.window.showInformationMessage(msg.admin);
+			return;
 		}
-		if (trimmed.includes('"')) {
-			return trimmed;
-		}
-		if (trimmed === "_") {
-			return '"_"';
-		}
-		const separatorBeforeMatch = trimmed.match(/^_:\s*has\(\s*\+\s*(.+?)\s*\)$/);
-		if (separatorBeforeMatch) {
-			return `"_":has( + ${quoteLabel(separatorBeforeMatch[1])})`;
-		}
-		const separatorAfterMatch = trimmed.match(/^(.+?)\s*\+\s*_$/);
-		if (separatorAfterMatch) {
-			return `${quoteLabel(separatorAfterMatch[1])} + "_"`;
-		}
-		return quoteLabel(trimmed);
-	}
-
-	function quoteLabel(label) {
-		const trimmed = label.trim();
-		if (trimmed.startsWith("^")) {
-			return `^"${trimmed.slice(1)}"`;
-		}
-		return `"${trimmed}"`;
+		vscode.window.showErrorMessage(msg.somethingWrong + (e && e.message ? e.message : String(e)));
 	}
 
 	function reloadWindow() {
-		// reload vscode-window
 		vscode.commands.executeCommand("workbench.action.reloadWindow");
 	}
-	function enabledRestart() {
-		vscode.window
-			.showInformationMessage(msg.enabled, msg.restartIde)
-			.then((btn) => {
-				// if close button is clicked btn is undefined, so no reload window
-				if (btn === msg.restartIde) {
-					reloadWindow()
-				}
-			})
+	function promptReload(message) {
+		vscode.window.showInformationMessage(message, msg.restartIde).then((btn) => {
+			// btn is undefined when the notification is dismissed — don't reload then.
+			if (btn === msg.restartIde) reloadWindow();
+		});
 	}
-	function disabledRestart() {
-		vscode.window
-			.showInformationMessage(msg.disabled, msg.restartIde)
-			.then((btn) => {
-				if (btn === msg.restartIde) {
-					reloadWindow()
-				}
-			})
+	function enabledRestart() { promptReload(msg.enabled); }
+	function disabledRestart() { promptReload(msg.disabled); }
+
+	function promptReEnable(message) {
+		vscode.window.showInformationMessage(message, msg.reEnable).then((btn) => {
+			if (btn === msg.reEnable) {
+				vscode.commands.executeCommand("custom-contextmenu.installCustomContextmenu");
+			}
+		});
 	}
 
-	const installCustomCSS = vscode.commands.registerCommand(
-		"custom-contextmenu.installCustomContextmenu",
-		cmdInstall
-	);
-	const uninstallCustomCSS = vscode.commands.registerCommand(
-		"custom-contextmenu.uninstallCustomContextmenu",
-		cmdUninstall
-	);
-	const configChangeHandler = vscode.workspace.onDidChangeConfiguration((event) => {
-		if (!event.affectsConfiguration("custom-contextmenu.selectors")) {
-			return;
+	// A VSCode update overwrites workbench.html, silently wiping our patch. If the
+	// user had it enabled, detect the now-pristine file on startup and offer to
+	// re-apply (rather than silently triggering an elevation prompt).
+	if (context.globalState.get("enabled")) {
+		let current = "";
+		try { current = fs.readFileSync(htmlFile, "utf-8"); } catch { /* ignore */ }
+		if (current && !patchlib.isPatched(current)) {
+			promptReEnable(msg.reapplyAfterUpdate);
 		}
-		vscode.window
-			.showInformationMessage(
-				"Custom context menu selectors updated. Re-enable the custom context menu to apply changes.",
-				"Re-enable"
-			)
-			.then((btn) => {
-				if (btn === "Re-enable") {
-					vscode.commands.executeCommand(
-						"custom-contextmenu.installCustomContextmenu"
-					);
-				}
-			});
-	});
+	}
 
-	context.subscriptions.push(installCustomCSS);
-	context.subscriptions.push(uninstallCustomCSS);
-	context.subscriptions.push(configChangeHandler);
+	context.subscriptions.push(
+		vscode.commands.registerCommand("custom-contextmenu.installCustomContextmenu", cmdInstall),
+		vscode.commands.registerCommand("custom-contextmenu.uninstallCustomContextmenu", cmdUninstall),
+		vscode.workspace.onDidChangeConfiguration((event) => {
+			// Only nag about re-enabling when the patch is actually in place —
+			// otherwise editing selectors before ever enabling triggers an
+			// irrelevant prompt.
+			if (event.affectsConfiguration("custom-contextmenu.selectors")
+				&& context.globalState.get("enabled")) {
+				promptReEnable(msg.selectorsChanged);
+			}
+		})
+	);
 
-	console.log("vscode-custom-css is active!");
-	console.log("Application directory", appDir);
-	console.log("Main HTML file", htmlFile);
+	console.log("custom-contextmenu active. Workbench file:", htmlFile);
 }
 exports.activate = activate;
 
-// this method is called when your extension is deactivated
-function deactivate() {
-vscode.commands.executeCommand("custom-contextmenu.uninstallCustomContextmenu")
-}
+// Note: we deliberately do not auto-uninstall on deactivate. Extension
+// deactivation fires on every window reload (including the reload triggered
+// by Enable itself), and uninstalling there means a single Enable would
+// take effect for only one window load. The user must run "Disable Custom
+// Context Menu" explicitly to revert.
+function deactivate() {}
 exports.deactivate = deactivate;

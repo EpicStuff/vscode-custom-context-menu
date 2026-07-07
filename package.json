@@ -2,12 +2,14 @@
 	"name": "custom-context-menu",
 	"displayName": "Custom Context Menu",
 	"description": "Custom Context Menu Cleaner for Visual Studio Code",
-	"version": "0.2.5",
+	"version": "0.5.4",
 	"publisher": "EpicStuff",
 	"engines": {
 		"vscode": "^1.92.0"
 	},
-	"categories": ["Other"],
+	"categories": [
+		"Other"
+	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/EpicStuff/vscode-custom-context-menu"
@@ -17,7 +19,9 @@
 	},
 	"preview": false,
 	"icon": "images/logo.png",
-	"activationEvents": ["*"],
+	"activationEvents": [
+		"onStartupFinished"
+	],
 	"main": "./src/extension",
 	"contributes": {
 		"commands": [
@@ -55,13 +59,13 @@
 		"eslint": "^8.21.0",
 		"eslint-config-prettier": "^8.5.0"
 	},
-	"dependencies": {
-		"uuid": "^8.3.2"
-	},
 	"extensionKind": [
+		"workspace",
 		"ui"
 	],
 	"scripts": {
-		"vscode:prepublish": "npx -y rimraf node_modules && npm install --prod"
+		"test": "node --test",
+		"test:e2e": "node --test tests/e2e/menu-e2e.js",
+		"package": "vsce package --no-dependencies --allow-missing-repository"
 	}
 }
