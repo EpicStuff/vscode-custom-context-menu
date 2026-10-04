@@ -59,3 +59,4 @@ The first entry hides the separator immediately before the `Share` menu item (wh
 	"window.menuStyle": "custom"
  	```
 - All changes were made by ChatGPT or Claude (and I've got no idea how to make vscode extensions or do javascript, but this extension does seem to be working).
+- If you really care about being able to customise the menu, checkout [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu). Sure you'll have to switch to theia, but it works alot better.
