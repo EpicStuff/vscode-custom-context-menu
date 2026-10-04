@@ -6,6 +6,8 @@
 
 Remove any items from VSCode's context menu (right click menu)
 
+**Note**: I'm switching to [theia](https://github.com/eclipse-theia/theia) and [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu) so this probably wont be getting any new updates, and will probably stop working after a few vscode updates.
+
 ## Screenshots
 
 | Before | After |
@@ -59,4 +61,4 @@ The first entry hides the separator immediately before the `Share` menu item (wh
 	"window.menuStyle": "custom"
  	```
 - All changes were made by ChatGPT or Claude (and I've got no idea how to make vscode extensions or do javascript, but this extension does seem to be working).
-- If you really care about being able to customise the menu, checkout [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu). Sure you'll have to switch to theia, but it works alot better.
+- If you really care about being able to customise the menu, checkout [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu). Sure you'll have to switch to [theia](https://github.com/eclipse-theia/theia), but it works alot better.
