@@ -135,6 +135,13 @@
 
 		const labels = items.map(labelOf);
 		const seps = items.map(isSeparator);
+		// Clear our own inline hide from separators before measuring them. Otherwise
+		// a separator hidden by the previous pass reads as "already hidden", is
+		// skipped by the collapse loop and is shown again by the write loop below,
+		// so every pass flips it.
+		for (let i = 0; i < items.length; i++) {
+			if (seps[i]) items[i].style.removeProperty('display');
+		}
 		const cssHidden = items.map((el) => {
 			const style = getComputedStyle(el);
 			return style.display === 'none' || style.visibility === 'hidden';
@@ -162,10 +169,27 @@
 		}
 	}
 
+	// Menu containers touched by an added node: the node itself, any descendant,
+	// and its enclosing container. Recent VSCode builds reuse one persistent
+	// `.context-view.monaco-menu-container` element and only add the menu's
+	// contents inside it, so the container is an ancestor of the added node and
+	// would otherwise never be attached.
+	function menuContainersFor(node) {
+		const found = new Set();
+		if (node.matches?.(MENU_SELECTOR)) found.add(node);
+		const ancestor = node.closest?.(MENU_SELECTOR);
+		if (ancestor) found.add(ancestor);
+		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) found.add(m);
+		return found;
+	}
+
 	function processNode(node) {
 		if (node.nodeType !== 1) return;
-		if (node.matches?.(MENU_SELECTOR)) attachMenu(node);
-		for (const m of node.querySelectorAll?.(MENU_SELECTOR) || []) attachMenu(m);
+		for (const m of menuContainersFor(node)) {
+			// A container that already has its observer re-trims itself on every
+			// mutation, so only (re)attach when it is new or is the added node.
+			if (m === node || !m.__ccmObs) attachMenu(m);
+		}
 	}
 
 	function watch(root) {
@@ -192,6 +216,6 @@
 		// No DOM: running under Node for unit tests. Expose the pure decision core.
 		// The injected browser script always has `document`, so this never fires
 		// in the workbench.
-		module.exports = { computeSeparatorHides };
+		module.exports = { computeSeparatorHides, trimSeparators, menuContainersFor };
 	}
 })();
