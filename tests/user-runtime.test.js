@@ -22,7 +22,7 @@ function loadRuntime() {
 	return require(file);
 }
 
-const { computeSeparatorHides } = loadRuntime();
+const { computeSeparatorHides, trimSeparators, menuContainersFor } = loadRuntime();
 
 // Convenience: build the parallel arrays from a compact item list. A separator
 // is `{ sep: true }`; a command is `{ label, cssHidden? }`.
@@ -119,4 +119,87 @@ test('a self prefix selector also collapses before paint', () => {
 
 test('empty menu yields no hides', () => {
 	assert.deepEqual(hidesFor([]), []);
+});
+
+// ---- DOM-level behaviour, driven through minimal fake elements ----
+
+function fakeStyle() {
+	const props = {};
+	return {
+		props,
+		setProperty(k, v) { props[k] = v; },
+		removeProperty(k) { delete props[k]; },
+	};
+}
+
+// A menu entry: a separator or a command. `cssHidden` models display:none that
+// the injected label sheet applies to a command.
+function fakeItem({ sep = false, label = '', cssHidden = false }) {
+	const style = fakeStyle();
+	const marker = sep ? { closest: () => item } : null;
+	const item = {
+		style,
+		cssHidden,
+		classList: { contains: () => false },
+		getAttribute: () => null,
+		contains: () => false,
+		querySelector(sel) {
+			if (sel === '.action-label') return { getAttribute: () => label, textContent: label };
+			return marker;
+		},
+	};
+	return item;
+}
+
+function fakeContainer(items) {
+	return {
+		matches: () => false,
+		querySelectorAll: () => items,
+	};
+}
+
+test('repeated passes keep a collapsed separator hidden', () => {
+	global.getComputedStyle = (el) => ({
+		display: el.style.props.display || (el.cssHidden ? 'none' : 'flex'),
+		visibility: 'visible',
+	});
+	const items = [
+		fakeItem({ label: 'Copy' }),
+		fakeItem({ sep: true }),
+		fakeItem({ label: 'Hidden', cssHidden: true }),
+		fakeItem({ sep: true }),
+		fakeItem({ label: 'Paste' }),
+	];
+	const container = fakeContainer(items);
+	const sepDisplays = [];
+	for (let pass = 0; pass < 4; pass++) {
+		trimSeparators(container);
+		sepDisplays.push(items.filter((_, i) => i % 2 === 1).map(el => el.style.props.display));
+	}
+	// Exactly one of the two stranded separators stays visible and the same one
+	// is hidden on every pass.
+	for (const d of sepDisplays) assert.deepEqual(d, sepDisplays[0]);
+	assert.equal(sepDisplays[0].filter(v => v === 'none').length, 1);
+});
+
+test('finds a reused menu container that is an ancestor of the added node', () => {
+	const container = { matches: (s) => s === '.monaco-menu-container' };
+	const child = {
+		nodeType: 1,
+		matches: () => false,
+		closest: (s) => (s === '.monaco-menu-container' ? container : null),
+		querySelectorAll: () => [],
+	};
+	assert.deepEqual([...menuContainersFor(child)], [container]);
+});
+
+test('still finds the node itself and its descendants', () => {
+	const inner = {};
+	const node = {
+		nodeType: 1,
+		matches: (s) => s === '.monaco-menu-container',
+		closest: () => null,
+		querySelectorAll: () => [inner],
+	};
+	assert.deepEqual([...menuContainersFor(node)], [node, inner]);
 });
