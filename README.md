@@ -6,7 +6,8 @@
 
 Remove any items from VSCode's context menu (right click menu)
 
-**Note**: I'm switching to [theia](https://github.com/eclipse-theia/theia) and [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu) so this probably wont be getting any new updates, and will probably stop working after a few vscode updates.
+> [!NOTE]
+> I'm switching to [theia](https://github.com/eclipse-theia/theia) and [custom theia context menu](https://github.com/EpicStuff/Stuff/tree/main/theia/custom-context-menu) so this probably wont be getting any new updates, and will probably stop working after a few vscode updates.
 
 ## Screenshots
 
